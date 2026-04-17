@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+<title>BreachRoom — Cyber Investigation Room</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════ */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#020509;font-family:'Inter',sans-serif;color:#c8d6e5;-webkit-tap-highlight-color:transparent}
+canvas{display:block}
+
+/* ═══════════════════════════════════════════════════
+   ATMOSPHERE OVERLAYS
+   ═══════════════════════════════════════════════════ */
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:radial-gradient(ellipse at center,transparent 40%,rgba(2,5,9,.65) 100%)}
+#scanlines{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;transition:opacity .6s}
+#scanlines::before{content:'';display:block;width:100%;height:100%;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(88,242,255,.025) 2px,rgba(88,242,255,.025) 4px)}
+#cursor-glow{position:fixed;width:260px;height:260px;border-radius:50%;pointer-events:none;z-index:3;
+  background:radial-gradient(circle,rgba(88,242,255,.04) 0%,transparent 70%);transform:translate(-50%,-50%)}
+#state-label{position:fixed;bottom:12px;right:16px;color:rgba(88,242,255,.25);font-size:9px;letter-spacing:3px;text-transform:uppercase;z-index:20;pointer-events:none;font-family:'IBM Plex Mono',monospace}
+
+/* ═══════════════════════════════════════════════════
+   MONITOR OVERLAY — tracks the 3D monitor
+   ═══════════════════════════════════════════════════ */
+#monitor-overlay{position:fixed;z-index:30;pointer-events:none;opacity:0;transition:opacity .45s;overflow:hidden;border-radius:6px}
+#monitor-overlay.visible{opacity:1;pointer-events:auto}
+#monitor-overlay-inner{width:100%;height:100%;position:relative;overflow:hidden}
+
+/* ═══════════════════════════════════════════════════
+   MENU SCREEN
+   ═══════════════════════════════════════════════════ */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;transition:opacity .35s,transform .35s}
+.screen.hidden{opacity:0;transform:scale(.96);pointer-events:none!important}
+
+#menu-screen{padding:clamp(12px,3%,28px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(88,242,255,.15) transparent}
+#menu-screen::-webkit-scrollbar{width:4px}
+#menu-screen::-webkit-scrollbar-thumb{background:rgba(88,242,255,.2);border-radius:2px}
+.menu-hdr{font-size:clamp(9px,1.4vw,13px);letter-spacing:4px;color:#58F2FF;text-transform:uppercase;font-weight:600;font-family:'IBM Plex Mono',monospace;margin-bottom:4px}
+.menu-sub{font-size:clamp(8px,1vw,10px);color:rgba(200,214,229,.4);margin-bottom:clamp(10px,2%,20px);letter-spacing:.5px}
+.inc-card{background:rgba(6,10,16,.75);border:1px solid rgba(88,242,255,.08);border-radius:8px;padding:clamp(8px,1.5%,14px) clamp(10px,2%,16px);margin-bottom:clamp(5px,1%,9px);cursor:pointer;transition:all .22s;display:flex;align-items:center;gap:clamp(8px,1.5%,14px)}
+.inc-card:hover{background:rgba(88,242,255,.05);border-color:rgba(88,242,255,.3);transform:translateX(3px)}
+.inc-dot{width:clamp(6px,1vw,10px);height:clamp(6px,1vw,10px);border-radius:50%;flex-shrink:0}
+.inc-info{flex:1;min-width:0}
+.inc-name{font-size:clamp(9px,1.2vw,12px);font-weight:600;color:#e8f4f8;letter-spacing:.5px}
+.inc-meta{font-size:clamp(7px,.9vw,9px);color:rgba(200,214,229,.4);margin-top:2px}
+.inc-arrow{color:rgba(88,242,255,.25);font-size:clamp(12px,1.5vw,16px);transition:color .2s}
+.inc-card:hover .inc-arrow{color:#58F2FF}
+
+/* ═══════════════════════════════════════════════════
+   MODE SELECTION
+   ═══════════════════════════════════════════════════ */
+#mode-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,3%,20px);padding:clamp(14px,4%,30px)}
+.mode-title{font-size:clamp(9px,1.3vw,12px);color:#58F2FF;letter-spacing:4px;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;margin-bottom:4px;text-align:center}
+.mode-case{font-size:clamp(12px,1.8vw,16px);font-weight:700;color:#e8f4f8;margin-bottom:clamp(8px,2%,16px);text-align:center}
+.mode-cards{display:flex;gap:clamp(8px,2%,16px);width:100%;max-width:440px}
+.mode-card{flex:1;background:rgba(6,10,16,.8);border:1px solid rgba(88,242,255,.12);border-radius:10px;padding:clamp(14px,3%,24px) clamp(10px,2%,16px);cursor:pointer;transition:all .25s;text-align:center}
+.mode-card:hover{border-color:#58F2FF;background:rgba(88,242,255,.06);transform:translateY(-2px)}
+.mode-icon{font-size:clamp(22px,4vw,36px);margin-bottom:8px}
+.mode-label{font-size:clamp(10px,1.2vw,13px);font-weight:600;color:#e8f4f8;margin-bottom:4px}
+.mode-desc{font-size:clamp(7px,.9vw,9px);color:rgba(200,214,229,.45);line-height:1.5}
+.mode-back{background:none;border:1px solid rgba(88,242,255,.15);border-radius:6px;padding:5px 14px;color:rgba(88,242,255,.55);font-size:clamp(8px,1vw,10px);cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;transition:all .2s;margin-top:4px}
+.mode-back:hover{border-color:#58F2FF;color:#58F2FF}
+
+/* ═══════════════════════════════════════════════════
+   TEXT PLAYER
+   ═══════════════════════════════════════════════════ */
+#text-screen{display:flex;flex-direction:column}
+#text-3d-wrap{height:45%;min-height:120px;position:relative;flex-shrink:0;border-bottom:1px solid rgba(88,242,255,.08)}
+#text-3d-canvas{width:100%;height:100%;display:block}
+#text-header{position:absolute;top:0;left:0;right:0;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;z-index:2;background:linear-gradient(180deg,rgba(2,6,14,.7) 0%,transparent 100%)}
+.hdr-back{background:rgba(8,12,18,.6);border:1px solid rgba(88,242,255,.18);border-radius:5px;padding:3px 10px;color:#58F2FF;font-size:clamp(7px,.9vw,9px);cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;transition:all .2s}
+.hdr-back:hover{background:rgba(88,242,255,.1);border-color:#58F2FF}
+.hdr-title{font-size:clamp(7px,.9vw,10px);color:rgba(88,242,255,.5);letter-spacing:2px;text-transform:uppercase;font-family:'IBM Plex Mono',monospace}
+#text-body{flex:1;overflow-y:auto;padding:clamp(14px,3%,24px) clamp(12px,3%,20px);scrollbar-width:thin;scrollbar-color:rgba(88,242,255,.1) transparent;position:relative}
+#text-body::-webkit-scrollbar{width:3px}
+#text-body::-webkit-scrollbar-thumb{background:rgba(88,242,255,.15);border-radius:2px}
+.text-scene-block{margin-bottom:clamp(20px,4%,32px);transition:opacity .5s,transform .5s;will-change:opacity,transform}
+.text-scene-block.faded{opacity:.08;transform:translateY(-6px) scale(.98)}
+.text-scene-num{font-size:clamp(7px,.8vw,9px);color:rgba(255,93,158,.4);letter-spacing:2px;font-family:'IBM Plex Mono',monospace;margin-bottom:4px}
+.text-scene-title{font-size:clamp(11px,1.5vw,15px);font-weight:700;color:#e8f4f8;margin-bottom:8px;letter-spacing:.3px}
+.text-scene-content{font-size:clamp(10px,1.2vw,13px);color:rgba(200,214,229,.75);line-height:1.75;letter-spacing:.2px}
+.text-scene-lesson{margin-top:10px;font-size:clamp(8px,1vw,10px);color:rgba(88,242,255,.45);border-left:2px solid rgba(88,242,255,.2);padding-left:10px;font-style:italic}
+
+/* ═══════════════════════════════════════════════════
+   AUDIO PLAYER
+   ═══════════════════════════════════════════════════ */
+#audio-screen{display:flex;flex-direction:column}
+#audio-3d-wrap{flex:1;position:relative}
+#audio-3d-canvas{width:100%;height:100%;display:block}
+#audio-header{position:absolute;top:0;left:0;right:0;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;z-index:2;background:linear-gradient(180deg,rgba(2,6,14,.7) 0%,transparent 100%)}
+#audio-subs{position:absolute;bottom:0;left:0;right:0;padding:clamp(10px,3%,20px) clamp(12px,3%,18px);background:linear-gradient(0deg,rgba(2,5,9,.88) 0%,rgba(2,5,9,.6) 60%,transparent 100%);min-height:60px;display:flex;flex-wrap:wrap;align-content:flex-end;gap:3px 5px}
+.sub-word{font-family:'Inter',sans-serif;font-size:clamp(12px,1.8vw,18px);font-weight:500;color:#e8f4f8;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;letter-spacing:.3px}
+.sub-word.visible{opacity:1;transform:translateY(0)}
+.sub-word.fading{animation:subFade .6s forwards}
+@keyframes subFade{
+  0%{opacity:1;transform:translateY(0);filter:blur(0)}
+  100%{opacity:0;transform:translateY(-12px) scale(.92);filter:blur(4px)}
+}
+#audio-controls{position:absolute;bottom:8px;right:12px;display:flex;gap:6px;z-index:3}
+.audio-btn{background:rgba(6,10,16,.7);border:1px solid rgba(88,242,255,.15);border-radius:5px;padding:3px 10px;color:#58F2FF;font-size:clamp(7px,.85vw,9px);cursor:pointer;font-family:'IBM Plex Mono',monospace;transition:all .2s}
+.audio-btn:hover{border-color:#58F2FF;background:rgba(88,242,255,.1)}
+#audio-progress{position:absolute;bottom:0;left:0;right:0;height:2px;background:rgba(88,242,255,.08);z-index:3}
+#audio-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#58F2FF,#FF5D9E);transition:width .3s}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════ */
+@media(max-width:600px){.mode-cards{flex-direction:column}}
+</style>
+</head>
+<body>
+<div id="vignette"></div>
+<div id="scanlines"></div>
+<div id="cursor-glow"></div>
+<div id="state-label">00_idle</div>
+
+<div id="monitor-overlay">
+<div id="monitor-overlay-inner">
+
+  <!-- MENU -->
+  <div id="menu-screen" class="screen">
+    <div class="menu-hdr">⬡ INCIDENT FILES</div>
+    <div class="menu-sub">Selecione um caso para investigar</div>
+    <div id="inc-list"></div>
+  </div>
+
+  <!-- MODE SELECT -->
+  <div id="mode-screen" class="screen hidden">
+    <div class="mode-title">MODO DE INVESTIGAÇÃO</div>
+    <div class="mode-case" id="mode-case-name"></div>
+    <div class="mode-cards">
+      <div class="mode-card" id="mode-text">
+        <div class="mode-icon">📖</div>
+        <div class="mode-label">Texto</div>
+        <div class="mode-desc">Leia a história completa com cenas 3D. Scroll no seu ritmo.</div>
+      </div>
+      <div class="mode-card" id="mode-audio">
+        <div class="mode-icon">🎧</div>
+        <div class="mode-label">Áudio</div>
+        <div class="mode-desc">Narração com legendas sincronizadas que se desintegram.</div>
+      </div>
+    </div>
+    <button class="mode-back" id="mode-back">← VOLTAR AO MENU</button>
+  </div>
+
+  <!-- TEXT PLAYER -->
+  <div id="text-screen" class="screen hidden">
+    <div id="text-3d-wrap">
+      <canvas id="text-3d-canvas"></canvas>
+      <div id="text-header">
+        <button class="hdr-back" id="text-back">← VOLTAR</button>
+        <span class="hdr-title" id="text-case-title"></span>
+      </div>
+    </div>
+    <div id="text-body"></div>
+  </div>
+
+  <!-- AUDIO PLAYER -->
+  <div id="audio-screen" class="screen hidden">
+    <div id="audio-3d-wrap">
+      <canvas id="audio-3d-canvas"></canvas>
+      <div id="audio-header">
+        <button class="hdr-back" id="audio-back">← VOLTAR</button>
+        <span class="hdr-title" id="audio-case-title"></span>
+      </div>
+      <div id="audio-subs"></div>
+      <div id="audio-controls">
+        <button class="audio-btn" id="audio-play">▶ PLAY</button>
+        <button class="audio-btn" id="audio-skip">SKIP ▶▶</button>
+      </div>
+      <div id="audio-progress"><div id="audio-progress-fill"></div></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 1 — INCIDENT DATA (8 incidents × 8 scenes)  ║
+   ╚═══════════════════════════════════════════════════════╝ */
+
+const INCIDENTS = [
+{
+  id:"yahoo", company:"Yahoo", title:"Yahoo Data Breach", year:"2013–2014", type:"Comprometimento massivo de contas", accent:"#58F2FF",
+  scenes:[
+    { title:"O Gigante dos E-mails", narr:"No início dos anos 2010, o Yahoo era um dos maiores serviços de e-mail do mundo, com mais de 3 bilhões de contas ativas. Milhões de pessoas confiavam seus dados pessoais, conversas e documentos à plataforma todos os dias.",
+      text:"O Yahoo era mais do que um serviço de e-mail — era uma das maiores plataformas digitais do planeta. Com mais de 3 bilhões de contas ativas, a empresa gerenciava uma quantidade colossal de dados pessoais: nomes, datas de nascimento, números de telefone, perguntas de segurança e senhas criptografadas.\n\nA escala era impressionante, mas também era um alvo irresistível. Para hackers estatais, comprometer o Yahoo significava ter acesso a uma fatia enorme da identidade digital global. E a defesa da empresa não acompanhava sua escala.",
+      env:"office", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"typing"},{p:[-1.5,0,1],a:"standing"}], mood:"calm" },
+    { title:"Hackers Estatais na Mira", narr:"Agentes patrocinados por um governo estrangeiro identificaram o Yahoo como alvo estratégico. Eles estudaram a infraestrutura da empresa e planejaram um ataque de longo prazo focado em espionagem.",
+      text:"Por trás do ataque estavam hackers vinculados a uma agência de inteligência estrangeira. Não eram amadores — eram profissionais treinados com recursos ilimitados e um objetivo claro: obter acesso persistente às comunicações de alvos de interesse geopolítico.\n\nEles passaram semanas estudando a infraestrutura do Yahoo, mapeando servidores, analisando fluxos de dados e identificando pontos fracos antes de dar o primeiro passo.",
+      env:"dark_room", figures:[{p:[0,0,0],a:"typing",c:"#FF5D9E"},{p:[1.5,0,0],a:"typing",c:"#FF5D9E"}], mood:"tense" },
+    { title:"Spear Phishing: O Primeiro Clique", narr:"Tudo começou com um e-mail. Um funcionário do Yahoo recebeu uma mensagem aparentemente legítima. Um clique foi o suficiente para abrir a porta da rede corporativa inteira.",
+      text:"O ataque começou da forma mais antiga e eficaz possível: um e-mail de spear phishing direcionado a um funcionário específico do Yahoo. A mensagem era cuidadosamente construída para parecer vir de um colega ou parceiro de negócios.\n\nBastou um clique em um link malicioso. Nesse instante, o malware foi executado e os atacantes ganharam um ponto de apoio dentro da rede corporativa do Yahoo. A partir dali, eles poderiam se mover lateralmente sem serem detectados.",
+      env:"office", figures:[{p:[0,0,0],a:"typing"},{p:[3,0,-1],a:"sneaking",c:"#FF5D9E"}], mood:"tense" },
+    { title:"Cookies Forjados: Acesso Sem Senha", narr:"Os hackers descobriram como forjar cookies de sessão do Yahoo. Com essa técnica, eles podiam acessar qualquer conta de usuário sem precisar da senha. Foi uma descoberta devastadora.",
+      text:"Uma das revelações mais assustadoras do caso: os atacantes aprenderam a forjar cookies de sessão. Cookies são pequenos arquivos que provam ao servidor que você já fez login. Ao forjar esses cookies, os hackers podiam acessar QUALQUER conta do Yahoo sem saber a senha.\n\nIsso significava que não importava quão forte fosse sua senha — os atacantes tinham uma chave-mestra. Eles entravam nas contas de suas vítimas silenciosamente, sem disparar nenhum alerta de login suspeito.",
+      env:"server_room", figures:[{p:[-1,0,0],a:"sneaking",c:"#FF5D9E"},{p:[1,0,0],a:"standing",c:"#FF5D9E"}], mood:"alert" },
+    { title:"Extração em Massa", narr:"Ao longo de meses, os atacantes extraíram dados de bilhões de contas sistematicamente. Nomes, e-mails, telefones, datas de nascimento e senhas criptografadas foram roubados em silêncio.",
+      text:"Com acesso irrestrito, a operação de extração de dados foi metódica e paciente. Os atacantes não tinham pressa — eles sistematicamente copiaram informações de bilhões de contas ao longo de meses.\n\nOs dados roubados incluíam nomes completos, endereços de e-mail, números de telefone, datas de nascimento, perguntas de segurança e suas respostas, e hashes de senhas. Era um tesouro de informações pessoais que poderia ser usado para espionagem, fraude e comprometimento de outras contas.",
+      env:"server_room", figures:[{p:[0,0,0],a:"carrying",c:"#FF5D9E"},{p:[2,0,0],a:"carrying",c:"#FF5D9E"}], mood:"critical" },
+    { title:"O Silêncio Corporativo", narr:"A liderança do Yahoo sabia do comprometimento antes de revelar ao público. A empresa foi acusada de atrasar a divulgação para não prejudicar uma aquisição bilionária em andamento com a Verizon.",
+      text:"O que tornou o caso ainda mais grave foi a resposta corporativa. A liderança do Yahoo tomou conhecimento do breach antes da divulgação pública, mas a decisão de revelar foi adiada. Na época, a empresa estava em negociação de aquisição com a Verizon — e revelar um breach daquela magnitude poderia destruir o negócio.\n\nQuando a informação finalmente veio a público em setembro de 2016, a reação foi de indignação. Acionistas, reguladores e usuários questionaram por que a empresa havia esperado tanto para informar que seus dados estavam comprometidos.",
+      env:"boardroom", figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"standing"},{p:[-1,0,0],a:"phone"}], mood:"tense" },
+    { title:"$350 Milhões a Menos", narr:"Quando o breach se tornou público, a Verizon reduziu sua oferta de aquisição do Yahoo em 350 milhões de dólares. A segurança se tornou um fator financeiro direto.",
+      text:"O impacto financeiro foi imediato e brutal. A Verizon, que estava comprando o Yahoo por $4.83 bilhões, reduziu sua oferta em $350 milhões após a revelação dos breaches. O Yahoo também foi multado em $35 milhões pela SEC por atrasar a divulgação.\n\nA CISO do Yahoo, Marissa Mayer, renunciou. O caso se tornou um exemplo clássico de como segurança cibernética afeta diretamente o valor corporativo e a confiança do mercado.",
+      env:"boardroom", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"phone"}], mood:"critical" },
+    { title:"A Lição que Ficou", narr:"O caso Yahoo mudou a indústria para sempre. Mostrou que identidade sem observabilidade é um ponto cego caro, que tempo de resposta define dano reputacional, e que segurança é responsabilidade executiva.",
+      text:"O Yahoo Data Breach entrou para a história como o maior comprometimento de dados já registrado. As lições são claras e ressoam até hoje:\n\n• Telemetria e monitoramento precisam acompanhar a escala da operação\n• Cookies e sessões precisam de proteção criptográfica robusta\n• Divulgação rápida reduz dano reputacional\n• Segurança é responsabilidade da liderança executiva, não só do time de TI\n• Due diligence de segurança é essencial em fusões e aquisições\n\n3 bilhões de contas. Essa é a escala do que pode acontecer quando identidade e observabilidade não andam juntas.",
+      env:"office", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"},{p:[-1.5,0,0],a:"standing"}], mood:"resolution" },
+  ]
+},
+{
+  id:"equifax", company:"Equifax", title:"Equifax Breach", year:"2017", type:"Vulnerabilidade web não corrigida", accent:"#FF6B7A",
+  scenes:[
+    { title:"O Guardião dos Dados de Crédito", narr:"A Equifax era uma das três maiores agências de crédito dos Estados Unidos. Ela mantinha dados financeiros sensíveis de 147 milhões de americanos — quase metade da população do país.",
+      text:"A Equifax era uma das três gigantes do crédito nos EUA, junto com Experian e TransUnion. Sua função era avaliar a saúde financeira de pessoas e empresas, o que significava que ela mantinha dados extremamente sensíveis: números de Seguro Social, históricos de crédito, endereços, datas de nascimento e até números de carteira de motorista.\n\n147 milhões de americanos tinham seus dados na Equifax. Quase metade do país confiava que essa empresa protegeria as informações mais sensíveis de suas vidas financeiras.",
+      env:"office", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"typing"},{p:[-1,0,1],a:"standing"}], mood:"calm" },
+    { title:"CVE-2017-5638: O Alerta Ignorado", narr:"Em março de 2017, uma vulnerabilidade crítica no Apache Struts foi divulgada publicamente com patch disponível. A Equifax usava essa tecnologia em seus sistemas voltados à internet. Eles foram avisados. Mas não corrigiram.",
+      text:"Em 6 de março de 2017, a Apache Foundation divulgou a CVE-2017-5638 — uma vulnerabilidade de execução remota de código no Apache Struts 2. A falha era tão grave que permitia a um atacante executar qualquer comando no servidor simplesmente enviando uma requisição HTTP especialmente crafted.\n\nO patch estava disponível imediatamente. O alerta foi distribuído por toda a comunidade de segurança. A equipe de segurança da Equifax recebeu a notificação. Um e-mail interno distribuiu o aviso. Mas ninguém aplicou o patch nos servidores expostos à internet. Por meses.",
+      env:"server_room", figures:[{p:[0,0,0],a:"standing"},{p:[2,0,0],a:"standing"}], mood:"tense" },
+    { title:"A Porta Aberta", narr:"77 dias depois do aviso, os hackers finalmente encontraram o que a Equifax não havia corrigido. Eles acessaram o portal de disputas de crédito da empresa e ganharam acesso ao backend.",
+      text:"Em 13 de maio de 2017, exatos 68 dias após a divulgação da vulnerabilidade e disponibilização do patch, os atacantes começaram a explorar a falha. Eles encontraram o portal online de disputas de crédito da Equifax — um sistema web que usava exatamente o Apache Struts não corrigido.\n\nA entrada foi silenciosa. Sem alarmes. Sem detecção. Os atacantes ganharam execução de código remoto e, a partir dali, começaram a se mover lateralmente pela rede interna da Equifax, descobrindo credenciais e acessando bancos de dados cada vez mais sensíveis.",
+      env:"server_room", figures:[{p:[0,0,0],a:"sneaking",c:"#FF5D9E"},{p:[-2,0,0],a:"standing"}], mood:"alert" },
+    { title:"SSNs, Tudo Exposto", narr:"Ao longo de 76 dias de acesso indevido, os hackers extraíram números de Seguro Social, datas de nascimento, endereços e números de carteira de motorista de 147 milhões de pessoas.",
+      text:"O acesso dos atacantes durou 76 dias — de 13 de maio a 30 de julho de 2017. Durante esse período, eles exfiltraram dados de 147,9 milhões de consumidores americanos, além de cidadãos do Reino Unido e Canadá.\n\nOs dados roubados incluíam:\n• 145,5 milhões de números de Seguro Social\n• Datas de nascimento\n• Endereços residenciais\n• Números de carteira de motorista\n• 209.000 números de cartão de crédito\n• Documentos de disputas com informações pessoais detalhadas\n\nEra o pacote perfeito para roubo de identidade em escala industrial.",
+      env:"server_room", figures:[{p:[0,0,0],a:"carrying",c:"#FF5D9E"},{p:[2,0,0],a:"carrying",c:"#FF5D9E"}], mood:"critical" },
+    { title:"Executivos Vendem Ações", narr:"Antes da divulgação pública, três executivos da Equifax venderam quase 2 milhões de dólares em ações. A SEC investigou, e um deles foi condenado por insider trading.",
+      text:"Um detalhe que transformou o caso de grave em escandaloso: entre a descoberta interna do breach em 29 de julho e a divulgação pública em 7 de setembro, três executivos seniores da Equifax venderam quase $1,8 milhão em ações da empresa.\n\nA SEC abriu investigação formal. Jun Ying, CIO da unidade de negócios dos EUA, foi condenado por insider trading em 2018. Ele havia pesquisado 'Equifax breach' no Google antes de vender suas ações. A condenação incluiu 4 meses de prisão e multa de $117.000.",
+      env:"boardroom", figures:[{p:[0,0,0],a:"phone"},{p:[1.5,0,0],a:"standing"},{p:[-1,0,0],a:"standing"}], mood:"critical" },
+    { title:"Nacional Virou Manchete", narr:"Quando a Equifax finalmente divulgou o breach em setembro de 2017, a reação foi explosiva. Audiências no Congresso, multas regulatórias e class action lawsuits inundaram a empresa.",
+      text:"A divulgação pública em 7 de setembro de 2017 detonou uma reação em cadeia. O CEO Richard Smith foi convocado para depor no Congresso. Senadores de ambos os partidos exigiram respostas sobre como uma falha tão simples havia sido ignorada por tanto tempo.\n\nA Equifax cometeu mais erros na comunicação da crise: o site criado para que consumidores verificassem se foram afetados era confuso, e a empresa inicialmente tentou fazer vítimas abrirem mão do direito de processar ao usar o serviço de monitoramento de crédito.",
+      env:"boardroom", figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"standing"},{p:[2,0,0],a:"standing"},{p:[-1,0,0],a:"phone"}], mood:"critical" },
+    { title:"$700 Milhões em Acordo", narr:"Em julho de 2019, a Equifax fechou um acordo de 700 milhões de dólares com a FTC, o CFPB e 50 estados americanos. O CEO renunciou. A empresa nunca se recuperou totalmente.",
+      text:"O custo total do breach para a Equifax foi devastador. Em julho de 2019, a empresa fechou um acordo de $700 milhões com a FTC, o CFPB e procuradores-gerais de todos os 50 estados.\n\nAlém do acordo, a Equifax gastou mais de $1,4 bilhão em melhorias de segurança. O CEO Richard Smith renunciou poucos dias após a divulgação. O CIO e o CISO também saíram. A empresa se tornou sinônimo de negligência em cibersegurança.",
+      env:"boardroom", figures:[{p:[0,0,0],a:"standing"}], mood:"critical" },
+    { title:"A Lição: Patch É Urgência", narr:"O caso Equifax provou que uma vulnerabilidade conhecida com patch disponível, quando não corrigida, pode causar um dos maiores desastres de dados da história. Patch management não é burocracia — é defesa.",
+      text:"O Equifax Breach é o caso definitivo sobre patch management. As lições são inescapáveis:\n\n• Uma única vulnerabilidade não corrigida comprometeu 147 milhões de pessoas\n• O patch existia há meses antes do ataque\n• Inventário de ativos e responsabilidade de patching precisam ter dono claro\n• Certificados SSL expirados na rede interna impediram a detecção do tráfego suspeito\n• A resposta ao incidente foi tão danosa quanto o próprio breach\n\nO caso provou que segurança cibernética é uma questão de governança corporativa, não apenas de TI.",
+      env:"office", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"typing"}], mood:"resolution" },
+  ]
+},
+{
+  id:"solarwinds", company:"SolarWinds", title:"SolarWinds Supply-Chain Attack", year:"2020", type:"Comprometimento da cadeia de suprimento", accent:"#9D7DFF",
+  scenes:[
+    { title:"Software que o Mundo Confia", narr:"O SolarWinds Orion era usado por mais de 33 mil organizações no mundo, incluindo agências do governo dos EUA, empresas da Fortune 500 e organizações militares.",
+      text:"O SolarWinds Orion era uma plataforma de monitoramento de TI usada por mais de 33.000 organizações globalmente. Governos, militares, Fortune 500 — todos confiavam no Orion para monitorar suas redes.\n\nQuando você instala um software de monitoramento, você dá a ele acesso profundo à sua infraestrutura. Ele precisa ver tudo para funcionar. Isso faz dele um alvo perfeito para um ataque à cadeia de suprimento.",
+      env:"office", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"typing"}], mood:"calm" },
+    { title:"Infiltração no Build System", narr:"Hackers vinculados ao SVR russo infiltraram o sistema de compilação do SolarWinds. Eles inseriram código malicioso diretamente no processo de build do Orion, de forma que cada atualização carregaria o backdoor.",
+      text:"O grupo APT29, também conhecido como Cozy Bear e vinculado à inteligência russa (SVR), não atacou os clientes do SolarWinds diretamente. Em vez disso, hackearam o próprio processo de compilação do software.\n\nEles inseriram o malware SUNBURST diretamente no código-fonte do Orion durante o build. Isso garantia que quando o SolarWinds compilava e distribuía uma atualização legítima para seus clientes, o backdoor ia junto — assinado digitalmente, parecendo perfeitamente autêntico.",
+      env:"server_room", figures:[{p:[0,0,0],a:"typing",c:"#FF5D9E"},{p:[2,0,0],a:"sneaking",c:"#FF5D9E"}], mood:"tense" },
+    { title:"18 Mil Organizações Infectadas", narr:"Entre março e junho de 2020, aproximadamente 18 mil organizações instalaram a atualização contaminada do Orion. O malware ficou dormente por duas semanas antes de ativar, camuflando seu tráfego como comunicação legítima.",
+      text:"A atualização comprometida (versões 2019.4 a 2020.2.1) foi distribuída entre março e junho de 2020. Aproximadamente 18.000 organizações instalaram o update malicioso.\n\nO SUNBURST era sofisticado: ficava dormente por 14 dias após instalação, verificava se não estava em ambiente de análise, e só então começava a se comunicar com servidores de comando e controle. O tráfego era disfarçado como comunicação legítima do Orion.",
+      env:"server_room", figures:[{p:[0,0,0],a:"standing"},{p:[2,0,0],a:"standing"},{p:[-2,0,0],a:"standing"}], mood:"alert" },
+    { title:"Dentro do Governo dos EUA", narr:"Os atacantes usaram o acesso para comprometer agências federais: Departamento do Tesouro, Departamento de Comércio, Departamento de Segurança Nacional e até partes do Pentágono.",
+      text:"Das 18.000 organizações infectadas, os atacantes selecionaram aproximadamente 100 para exploração aprofundada. Entre elas estavam:\n\n• Departamento do Tesouro dos EUA\n• Departamento de Comércio\n• Departamento de Segurança Nacional (DHS)\n• Partes do Pentágono\n• Departamento de Estado\n• National Institutes of Health\n• Departamento de Energia (incluindo NNSA — administração nuclear)\n\nEm cada alvo, os atacantes se moviam lateralmente, estabelecendo persistência adicional para garantir acesso mesmo se o SUNBURST fosse descoberto.",
+      env:"government", figures:[{p:[0,0,0],a:"sneaking",c:"#FF5D9E"},{p:[2,0,0],a:"standing"}], mood:"critical" },
+    { title:"FireEye Descobre por Acidente", narr:"A empresa de segurança FireEye descobriu o ataque enquanto investigava um comprometimento de suas próprias ferramentas. Eles perceberam que o problema não era só deles — era sistêmico.",
+      text:"A descoberta do ataque aconteceu por acidente. A FireEye, uma das maiores empresas de cibersegurança do mundo, notou que suas ferramentas proprietárias de pentesting (Red Team tools) haviam sido roubadas.\n\nInvestigando o roubo, a FireEye rastreou a intrusão até o SolarWinds Orion e descobriu o SUNBURST. Em 13 de dezembro de 2020, a FireEye publicou sua análise. A comunidade de segurança mundial entrou em estado de alerta.",
+      env:"dark_room", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"typing"}], mood:"alert" },
+    { title:"O Malware Mais Sofisticado", narr:"O SUNBURST era excepcionalmente sofisticado. Dormência de 14 dias, checagem anti-análise, comunicação camuflada, e code-signing legítimo. Passou meses sem detecção.",
+      text:"O nível de sofisticação do SUNBURST era sem precedentes:\n\n• Período de dormência de 14 dias antes de ativar\n• Verificação de ambiente sandbox e ferramentas de análise\n• Comunicação C2 camuflada como tráfego legítimo do Orion\n• Utilização dos mesmos padrões de nomenclatura do código legítimo\n• Código-fonte inserido de forma que parecia escrito pelos próprios desenvolvedores\n• Assinatura digital válida da SolarWinds\n\nOs atacantes literalmente se tornaram parte do software confiável.",
+      env:"server_room", figures:[{p:[0,0,0],a:"typing",c:"#9D7DFF"}], mood:"tense" },
+    { title:"Impacto Global e Executive Order", narr:"O presidente Biden emitiu uma Executive Order em maio de 2021 reestruturando a cibersegurança federal. O conceito de SBOM e zero trust foram acelerados por causa do SolarWinds.",
+      text:"As consequências do SolarWinds foram sísmicas. Em maio de 2021, o presidente Biden emitiu a Executive Order 14028, exigindo:\n\n• Software Bill of Materials (SBOM) para fornecedores do governo\n• Arquitetura Zero Trust em agências federais\n• Compartilhamento obrigatório de informações sobre incidentes\n• Padrões NIST atualizados para segurança de software\n\nA SolarWinds gastou mais de $40 milhões em custos de resposta e enfrentou múltiplos processos judiciais e investigações da SEC.",
+      env:"government", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"},{p:[-1.5,0,0],a:"standing"}], mood:"critical" },
+    { title:"A Lição: Supply Chain É Superfície de Ataque", narr:"O SolarWinds provou que a confiança em fornecedores precisa ser validada continuamente. Não existe software confiável demais para ser verificado.",
+      text:"O caso SolarWinds redefiniu a conversa sobre segurança:\n\n• Supply chain de software é superfície de ataque real e precisa ser tratada como tal\n• Zero Trust deve se aplicar inclusive a softwares internos e de fornecedores confiáveis\n• Software Bill of Materials (SBOM) é essencial para visibilidade\n• Build systems e CI/CD pipelines são alvos de alto valor\n• A sofisticação de adversários estatais pode superar qualquer defesa individual\n\nA confiança cega em qualquer fornecedor é uma vulnerabilidade.",
+      env:"office", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}], mood:"resolution" },
+  ]
+},
+{
+  id:"colonial", company:"Colonial Pipeline", title:"Colonial Pipeline Ransomware", year:"2021", type:"Ransomware em infraestrutura crítica", accent:"#FFD166",
+  scenes:[
+    { title:"A Artéria dos EUA", narr:"O Colonial Pipeline transportava 45% de todo combustível consumido na Costa Leste dos EUA. Gasolina, diesel e combustível de aviação fluíam por 8.850 km de dutos do Texas a Nova Jersey.",
+      text:"O Colonial Pipeline era a maior rede de dutos de combustível dos Estados Unidos, transportando 2,5 milhões de barris por dia ao longo de 8.850 km — do Texas até Nova Jersey. Isso representava 45% de todo o combustível consumido na Costa Leste americana.\n\nGasolina, diesel, querosene de aviação e óleo de aquecimento — todos dependiam dessa infraestrutura. Era um alvo que poderia afetar a vida de dezenas de milhões de pessoas se fosse interrompido.",
+      env:"pipeline", figures:[{p:[0,0,0],a:"standing"},{p:[2,0,0],a:"typing"}], mood:"calm" },
+    { title:"DarkSide Entra em Cena", narr:"O grupo ransomware DarkSide, operando um modelo de Ransomware-as-a-Service, identificou a Colonial como alvo lucrativo. DarkSide era um grupo sofisticado com regras próprias, incluindo a de nunca atacar hospitais.",
+      text:"DarkSide era um grupo de ransomware que operava um modelo de negócios criminoso: Ransomware-as-a-Service (RaaS). Eles desenvolviam o malware e afiliados o implantavam em vítimas, dividindo os lucros.\n\nO grupo se autoproclamava 'ético' — tinha regras contra atacar hospitais, escolas e organizações sem fins lucrativos. Mas infraestrutura energética não estava na lista de exceções.",
+      env:"dark_room", figures:[{p:[0,0,0],a:"typing",c:"#FF5D9E"},{p:[1.5,0,0],a:"typing",c:"#FF5D9E"}], mood:"tense" },
+    { title:"Uma Senha Comprometida", narr:"O vetor de entrada foi devastadoramente simples: uma conta VPN legada com senha comprometida. Sem fator múltiplo de autenticação. Uma única credencial abriu a porta.",
+      text:"O ataque começou com algo absurdamente simples: uma conta VPN legada que usava uma senha já comprometida em outro vazamento. A conta não tinha autenticação multifator (MFA) habilitada.\n\nUm único par de usuário e senha — provavelmente comprado na dark web por poucos dólares — deu aos atacantes acesso à rede interna da Colonial Pipeline. A partir dali, eles se moveram lateralmente até encontrar sistemas críticos.",
+      env:"server_room", figures:[{p:[0,0,0],a:"sneaking",c:"#FF5D9E"}], mood:"alert" },
+    { title:"Ransomware Ativado", narr:"Em 7 de maio de 2021, o ransomware criptografou os sistemas de TI da Colonial. Quase 100 gigabytes de dados foram exfiltrados antes da criptografia como garantia para extorsão dupla.",
+      text:"Na madrugada de 7 de maio de 2021, o ransomware DarkSide foi ativado nos sistemas de TI da Colonial Pipeline. Em minutos, centenas de gigabytes de dados corporativos foram criptografados.\n\nAntes da criptografia, os atacantes haviam exfiltrado quase 100 GB de dados como alavanca para extorsão dupla: 'pague para descriptografar E pague para não publicarmos seus dados'. A Colonial enfrentava agora uma decisão agonizante.",
+      env:"server_room", figures:[{p:[0,0,0],a:"standing"},{p:[2,0,0],a:"standing"}], mood:"critical" },
+    { title:"A Decisão: Desligar Tudo", narr:"A Colonial Pipeline tomou a decisão extrema de desligar todas as operações do duto por precaução. 45% do combustível da Costa Leste parou de fluir instantaneamente.",
+      text:"A Colonial tomou uma decisão drástica: desligar todo o pipeline. A preocupação era que o malware pudesse ter alcançado os sistemas de controle operacional (OT) que gerenciavam o fluxo físico de combustível.\n\nMesmo sem confirmação de comprometimento dos sistemas OT, o risco era inaceitável. Um malware nos controles industriais de um duto de combustível poderia causar explosões, vazamentos ou danos ambientais. A interrupção foi total e imediata.",
+      env:"pipeline", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"phone"}], mood:"critical" },
+    { title:"Pânico nos Postos", narr:"A interrupção do pipeline causou escassez de combustível em múltiplos estados. Filas enormes nos postos de gasolina, aumento de preços e pânico público dominaram as manchetes por dias.",
+      text:"Os efeitos foram sentidos quase imediatamente. Postos de gasolina ao longo da Costa Leste começaram a ficar sem combustível. Filas quilométricas se formaram. Preços dispararam. O pânico se espalhou.\n\nEm alguns estados, mais de 70% dos postos ficaram sem gasolina. Pessoas enchiam sacos plásticos e recipientes improvisados com combustível. Voos foram afetados por falta de querosene. Era o exemplo mais tangível e visual de como um ataque cibernético pode afetar diretamente a vida cotidiana de milhões.",
+      env:"city", figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"standing"},{p:[2,0,0],a:"standing"},{p:[-1,0,0],a:"standing"}], mood:"critical" },
+    { title:"$4,4 Milhões em Bitcoin", narr:"A Colonial pagou 75 bitcoins ao DarkSide — cerca de $4,4 milhões. Semanas depois, o FBI conseguiu recuperar $2,3 milhões rastreando a carteira digital.",
+      text:"Após 5 dias de paralisia, a Colonial Pipeline pagou 75 bitcoins (aproximadamente $4,4 milhões) ao DarkSide. A decisão foi controversa, mas a empresa alegou que não tinha certeza da extensão do dano e precisava restaurar operações urgentemente.\n\nEm uma virada surpreendente, o FBI conseguiu rastrear e apreender $2,3 milhões do resgate um mês depois, usando técnicas de rastreamento de blockchain. O grupo DarkSide anunciou que estava encerrando operações — embora provavelmente tenha apenas rebranded.",
+      env:"dark_room", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"standing"}], mood:"alert" },
+    { title:"A Lição: Cyber É Físico", narr:"O Colonial Pipeline mostrou ao mundo que ataques cibernéticos podem ter consequências físicas devastadoras. MFA, segmentação de redes e planos de resposta não são opcionais para infraestrutura crítica.",
+      text:"O caso Colonial Pipeline mudou permanentemente a conversa sobre cibersegurança e infraestrutura crítica:\n\n• Uma senha comprometida sem MFA paralisou 45% do combustível da Costa Leste\n• Segmentação entre IT e OT é crítica para infraestrutura industrial\n• Planos de resposta e exercícios de tabletop precisam existir ANTES da crise\n• Ransomware é uma ameaça à segurança nacional, não só corporativa\n• O governo emitiu diretivas de segurança obrigatórias para operadores de dutos\n\nCibersegurança e segurança física são a mesma conversa.",
+      env:"pipeline", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}], mood:"resolution" },
+  ]
+},
+{
+  id:"target", company:"Target", title:"Target Breach", year:"2013", type:"Terceiro + malware em POS", accent:"#FF8B5D",
+  scenes:[
+    { title:"Black Friday no Alvo", narr:"Era novembro de 2013. A Target, segunda maior varejista dos EUA, vivia seu período mais movimentado. Milhões de transações por dia em mais de 1.800 lojas.",
+      text:"A Target era a segunda maior varejista discount dos Estados Unidos, com mais de 1.800 lojas e milhões de transações de cartão de crédito processadas diariamente. O período de fim de ano era o mais intenso — e o mais lucrativo.\n\nPor trás das vitrines decoradas e promoções de Black Friday, a infraestrutura de TI processava volumes massivos de dados de pagamento. Era o cenário perfeito para um atacante paciente.",
+      env:"retail", figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"walking"},{p:[-1,0,0],a:"walking"},{p:[2,0,0],a:"standing"}], mood:"calm" },
+    { title:"O Fornecedor de HVAC", narr:"Tudo começou com a Fazio Mechanical, uma pequena empresa de ar-condicionado e refrigeração que prestava serviço para a Target. Os hackers atacaram a Fazio primeiro.",
+      text:"A Fazio Mechanical Services era uma pequena empresa da Pensilvânia especializada em sistemas de HVAC (aquecimento, ventilação e ar-condicionado). Ela era uma das centenas de fornecedores da Target.\n\nOs atacantes comprometeram a Fazio primeiro — usando um e-mail de phishing para instalar malware e roubar as credenciais que a Fazio usava para acessar o portal de fornecedores da Target.",
+      env:"office", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"sneaking",c:"#FF5D9E"}], mood:"tense" },
+    { title:"Do Fornecedor ao Core", narr:"Com as credenciais da Fazio, os hackers acessaram a rede da Target. A segmentação era fraca — do portal de fornecedores, eles conseguiram alcançar a rede de processamento de pagamentos.",
+      text:"Usando as credenciais roubadas da Fazio Mechanical, os atacantes acessaram o portal web de fornecedores da Target. Dali, exploraram falhas na segmentação de rede para se mover lateralmente.\n\nA rede da Target não tinha separação adequada entre o sistema de gerenciamento de fornecedores e a rede de processamento de pagamentos. Os atacantes cruzaram essa fronteira que deveria ter sido intransponível.",
+      env:"server_room", figures:[{p:[0,0,0],a:"sneaking",c:"#FF5D9E"},{p:[2,0,0],a:"sneaking",c:"#FF5D9E"}], mood:"alert" },
+    { title:"Malware nos Caixas", narr:"Os hackers instalaram um RAM scraper malware nos terminais POS de quase todas as lojas Target. O malware capturava dados de cartão de crédito na memória do terminal, antes da criptografia.",
+      text:"Os atacantes implantaram um malware tipo RAM scraper nos terminais de ponto de venda (POS) da Target. O malware era sofisticado: capturava dados de cartão de crédito diretamente da memória do terminal, no breve momento entre a leitura da tarja magnética e a criptografia dos dados.\n\nO malware foi instalado em aproximadamente 1.800 lojas. A partir de 27 de novembro (dia da Black Friday), cada transação de cartão que passava por um terminal comprometido tinha seus dados capturados.",
+      env:"retail", figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"standing"},{p:[-1,0,0],a:"walking"}], mood:"critical" },
+    { title:"40 Milhões de Cartões", narr:"Entre 27 de novembro e 15 de dezembro de 2013, os hackers roubaram dados de aproximadamente 40 milhões de cartões de crédito e débito. Além disso, dados pessoais de 70 milhões de clientes.",
+      text:"O período de coleta durou 19 dias — do Black Friday ao dia 15 de dezembro. Nesse intervalo, dados de aproximadamente 40 milhões de cartões de crédito e débito foram roubados.\n\nAdicionalmente, informações pessoais de 70 milhões de clientes foram comprometidas: nomes, endereços de correspondência, números de telefone e endereços de e-mail. Os dados de cartão foram vendidos em lotes na dark web, onde compradores os usaram para criar cartões clonados.",
+      env:"server_room", figures:[{p:[0,0,0],a:"carrying",c:"#FF5D9E"},{p:[2,0,0],a:"carrying",c:"#FF5D9E"}], mood:"critical" },
+    { title:"Alertas Ignorados", narr:"O sistema de segurança FireEye da Target detectou o malware e gerou alertas automáticos. A equipe de segurança em Bangalore recebeu os alertas. Mas ninguém agiu.",
+      text:"Um dos detalhes mais dolorosos do caso: a Target havia investido $1,6 milhão em um sistema de monitoramento de segurança da FireEye, instalado apenas meses antes do ataque. O sistema FUNCIONOU — ele detectou o malware e gerou alertas.\n\nOs alertas foram enviados para a equipe de segurança em Bangalore, na Índia. Eles também tinham capacidade de resposta automática que poderia ter bloqueado o malware. Mas essa função estava desabilitada, e os alertas manuais foram ignorados.",
+      env:"office", figures:[{p:[0,0,0],a:"standing"},{p:[2,0,0],a:"typing"}], mood:"critical" },
+    { title:"Brian Krebs Publica", narr:"O jornalista de segurança Brian Krebs publicou a história primeiro. A Target confirmou dias depois, iniciando uma crise pública que custaria mais de 162 milhões de dólares.",
+      text:"A Target não descobriu o breach por conta própria. Em 18 de dezembro de 2013, o jornalista de segurança Brian Krebs publicou a história em seu blog, citando bancos e processadoras de cartão que haviam notado fraudes em massa.\n\nA Target confirmou publicamente o breach dois dias depois. O CEO Gregg Steinhafel e o CIO Beth Jacob renunciaram nos meses seguintes. O custo total para a Target ultrapassou $162 milhões apenas em gastos relacionados ao breach, sem contar a perda de vendas e reputação.",
+      env:"boardroom", figures:[{p:[0,0,0],a:"phone"},{p:[1.5,0,0],a:"standing"}], mood:"critical" },
+    { title:"A Lição: Terceiros São Perímetro", narr:"O breach da Target provou que a segurança é tão forte quanto o elo mais fraco. Segmentação de rede, mínimo privilégio para terceiros e ação sobre alertas são obrigatórios.",
+      text:"O Target Breach se tornou o caso definitivo sobre riscos de terceiros:\n\n• Uma empresa de HVAC com acesso ao portal comprometeu toda a rede\n• Segmentação inadequada entre zonas de rede permitiu movimento lateral\n• Alertas de segurança detectaram o ataque mas foram ignorados\n• Resposta automática estava desabilitada apesar de disponível\n• POS terminals precisam de isolamento dedicado e monitoramento contínuo\n\nO perímetro de segurança inclui todos os terceiros que têm qualquer nível de acesso.",
+      env:"retail", figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}], mood:"resolution" },
+  ]
+},
+{
+  id:"sony", company:"Sony Pictures", title:"Sony Pictures Hack", year:"2014", type:"Intrusão destrutiva + vazamento", accent:"#FF5D9E",
+  scenes:[
+    { title:"Hollywood Digital",narr:"A Sony Pictures era um dos maiores estúdios de cinema do mundo, com milhares de funcionários e acervos digitais valiosíssimos.",text:"A Sony Pictures Entertainment era uma potência de Hollywood, produzindo filmes, séries e conteúdo que alcançava bilhões de pessoas globalmente. Sua infraestrutura digital guardava filmes não lançados, roteiros, contratos, e-mails executivos e dados pessoais de milhares de funcionários.\n\nEm 2014, a Sony estava prestes a lançar 'The Interview', uma comédia sobre um plano fictício de assassinar o líder da Coreia do Norte. Essa decisão criativa teria consequências cibernéticas devastadoras.",env:"office",figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"typing"},{p:[-1,0,1],a:"walking"}],mood:"calm"},
+    { title:"Guardiões da Paz",narr:"Um grupo chamado Guardians of Peace, vinculado à Coreia do Norte, infiltrou a rede da Sony silenciosamente antes de lançar um ataque destrutivo sem precedentes.",text:"O grupo autodenominado 'Guardians of Peace' (GOP) — posteriormente vinculado ao Bureau 121, a unidade de guerra cibernética da Coreia do Norte — havia infiltrado a rede da Sony semanas antes do ataque visível.\n\nOperando em silêncio, eles mapearam a infraestrutura, copiaram dados e prepararam malware destrutivo. Era um ataque motivado não por dinheiro, mas por retaliação política contra 'The Interview'.",env:"dark_room",figures:[{p:[0,0,0],a:"typing",c:"#FF5D9E"},{p:[1.5,0,0],a:"typing",c:"#FF5D9E"}],mood:"tense"},
+    { title:"Wiper: Destruição Total",narr:"Em 24 de novembro de 2014, o malware destrutivo foi ativado. Servidores foram apagados, computadores exibiam uma mensagem ameaçadora dos Guardians of Peace. A Sony voltou a trabalhar com papel e caneta.",text:"Na manhã de 24 de novembro de 2014, funcionários da Sony chegaram ao trabalho e encontraram seus computadores exibindo uma imagem de um esqueleto vermelho com a mensagem: 'Hacked By #GOP'.\n\nO malware wiper havia apagado sistematicamente dados de servidores e workstations. A Sony Pictures foi forçada a operar com caneta, papel e fax por semanas. Era como se a empresa tivesse voltado aos anos 80.",env:"office",figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"standing"},{p:[2,0,0],a:"standing"}],mood:"critical"},
+    { title:"Tudo Vazou",narr:"Filmes não lançados, e-mails privados de executivos, salários de atores, informações médicas de funcionários e roteiros foram publicados na internet para o mundo inteiro ver.",text:"Os dados vazados eram devastadores em sua amplitude:\n\n• 5 filmes não lançados (incluindo Annie) apareceram em sites de torrent\n• E-mails privados entre executivos revelaram comentários racistas sobre atores e presidentes\n• Salários de todos os funcionários, incluindo estrelas de Hollywood, foram publicados\n• Informações médicas e registros de Seguro Social de 47.000 funcionários\n• Roteiros, planos de negócios e contratos confidenciais\n\nFoi o vazamento corporativo mais vergonhoso da história.",env:"server_room",figures:[{p:[0,0,0],a:"carrying",c:"#FF5D9E"},{p:[2,0,0],a:"carrying",c:"#FF5D9E"}],mood:"critical"},
+    { title:"Ameaças Terroristas",narr:"Os hackers ameaçaram ataques físicos a cinemas que exibissem The Interview. As principais redes de cinema se recusaram a exibir o filme. A Sony cancelou o lançamento.",text:"A situação escalou quando os Guardians of Peace emitiram ameaças de violência física contra cinemas que exibissem 'The Interview'. Evocando o 11 de setembro, eles prometeram consequências a quem assistisse ao filme.\n\nAs maiores redes de cinema dos EUA — AMC, Regal, Cinemark — recusaram exibir o filme. A Sony inicialmente cancelou o lançamento completamente, gerando críticas de que estavam cedendo à intimidação de um governo estrangeiro.",env:"city",figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"standing"},{p:[-1,0,0],a:"standing"}],mood:"critical"},
+    { title:"Obama no Caso",narr:"O presidente Obama publicamente criticou a decisão da Sony e chamou o ataque de vandalismo cibernético. Os EUA impuseram sanções à Coreia do Norte em resposta.",text:"O presidente Barack Obama entrou publicamente no caso, dizendo que a Sony 'cometeu um erro' ao cancelar o filme e que os EUA não podiam ter 'um ditador impondo censura nos Estados Unidos'.\n\nO FBI atribuiu formalmente o ataque à Coreia do Norte. O governo americano impôs novas sanções contra o regime norte-coreano. A Sony eventualmente lançou 'The Interview' online e em cinemas independentes.",env:"government",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}],mood:"alert"},
+    { title:"O Custo Real",narr:"O custo total para a Sony Pictures ultrapassou 100 milhões de dólares. Carreiras foram destruídas. A co-presidente Amy Pascal renunciou após o vazamento de seus e-mails.",text:"O impacto financeiro direto para a Sony Pictures foi estimado em mais de $100 milhões, incluindo investigação, remediação, monitoramento de crédito para funcionários e processos judiciais.\n\nA co-presidente Amy Pascal renunciou após o vazamento de e-mails embaraçosos. Múltiplos processos de funcionários cujos dados foram vazados resultaram em acordos. A reputação da Sony como um lugar seguro para trabalhar e fazer negócios foi severamente danificada.",env:"boardroom",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"phone"}],mood:"critical"},
+    { title:"A Lição: Destruição É Possível",narr:"O caso Sony mostrou que ataques cibernéticos podem ser destrutivos, não só ladrões de dados. Backups, segregação e resiliência são tão importantes quanto prevenção.",text:"O Sony Pictures Hack ensinou lições que a indústria nunca esqueceu:\n\n• Ataques podem ser motivados por política, não só por dinheiro\n• Destruição total de infraestrutura é um cenário real\n• Backups offline e planos de DR são essenciais\n• E-mails e comunicações internas são alvos valiosos\n• Classificação de dados e retenção mínima limitam o dano de vazamentos\n• Um único evento pode afetar reputação, operações e segurança física\n\nA Sony provou que resiliência é tão crucial quanto prevenção.",env:"office",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}],mood:"resolution"},
+  ]
+},
+{
+  id:"marriott", company:"Marriott", title:"Marriott Data Breach", year:"2018", type:"Acesso prolongado não detectado", accent:"#5EEAD4",
+  scenes:[
+    { title:"O Império Hoteleiro",narr:"A Marriott era a maior rede de hotéis do mundo, com mais de 30 marcas e milhões de hóspedes.",text:"A Marriott International operava mais de 6.700 propriedades em 130 países, com marcas como Sheraton, Westin, W Hotels e Ritz-Carlton. Seu programa de fidelidade Starwood Preferred Guest (SPG) mantinha dados detalhados de centenas de milhões de viajantes globais.\n\nQuando a Marriott adquiriu a Starwood Hotels em 2016 por $13,6 bilhões, herdou algo que não estava no contrato: uma invasão ativa que já durava anos.",env:"hotel",figures:[{p:[0,0,0],a:"typing"},{p:[2,0,0],a:"walking"},{p:[-1,0,0],a:"walking"}],mood:"calm"},
+    { title:"A Invasão de 2014",narr:"O que ninguém sabia: hackers já haviam infiltrado o sistema de reservas da Starwood desde 2014. Quando a Marriott comprou a Starwood, comprou o problema junto.",text:"A intrusão começou em 2014 — dois anos antes da aquisição pela Marriott. Hackers comprometeram o sistema de reservas Starwood Guest Reservation Database, ganhando acesso persistente a dados de hóspedes.\n\nDurante a due diligence da aquisição, a segurança cibernética da Starwood não foi auditada com profundidade suficiente. Ninguém detectou que atacantes já estavam dentro dos sistemas.",env:"server_room",figures:[{p:[0,0,0],a:"sneaking",c:"#FF5D9E"}],mood:"tense"},
+    { title:"4 Anos Sem Detecção",narr:"Os atacantes permaneceram dentro dos sistemas da Starwood por 4 anos. Extraindo dados silenciosamente, sem disparar alertas, sem serem notados.",text:"De 2014 a setembro de 2018 — quatro anos completos — os atacantes mantiveram acesso aos sistemas de reservas. Eles operavam com paciência extraordinária, extraindo dados em volumes pequenos o suficiente para não disparar alertas.\n\nNesse período, os sistemas da Starwood foram gradualmente integrados aos da Marriott, mas os atacantes adaptaram suas técnicas e mantiveram o acesso. O indicador de tempo de permanência (dwell time) de 4 anos é um dos mais longos já registrados.",env:"server_room",figures:[{p:[0,0,0],a:"sneaking",c:"#FF5D9E"},{p:[2,0,0],a:"standing"}],mood:"alert"},
+    { title:"500 Milhões de Registros",narr:"Quando finalmente descoberto, o alcance era enorme: até 500 milhões de registros de hóspedes foram potencialmente comprometidos, incluindo números de passaporte.",text:"A escala do comprometimento era quase incompreensível:\n\n• Até 500 milhões de registros de hóspedes potencialmente acessados\n• 383 milhões de registros confirmados como comprometidos\n• 5,25 milhões de números de passaporte não criptografados\n• 8,6 milhões de números de cartão de crédito criptografados\n• Nomes, endereços, datas de nascimento, números de telefone\n• Histórico de hospedagem e preferências de viagem\n\nPara viajantes frequentes e diplomatas, o comprometimento de dados de passaporte e padrões de viagem era especialmente preocupante do ponto de vista de inteligência.",env:"server_room",figures:[{p:[0,0,0],a:"carrying",c:"#FF5D9E"},{p:[2,0,0],a:"carrying",c:"#FF5D9E"}],mood:"critical"},
+    { title:"GDPR Entra em Ação",narr:"Como o breach afetou cidadãos europeus, o ICO do Reino Unido multou a Marriott em 18,4 milhões de libras sob o GDPR. Foi um dos primeiros grandes casos sob a nova lei de privacidade.",text:"O timing do breach foi particularmente infeliz para a Marriott. O GDPR (Regulamento Geral de Proteção de Dados) da União Europeia havia entrado em vigor em maio de 2018, poucos meses antes da descoberta.\n\nComo centenas de milhões de cidadãos europeus estavam entre os afetados, o ICO (Information Commissioner's Office) do Reino Unido abriu investigação. A multa final foi de £18,4 milhões — reduzida do valor inicial de £99 milhões devido à cooperação da Marriott e ao impacto econômico da pandemia.",env:"government",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}],mood:"critical"},
+    { title:"A Lição: M&A Precisa de Cyber Due Diligence",narr:"O Marriott Breach mostrou que segurança cibernética precisa ser parte fundamental de qualquer processo de fusão e aquisição. Você herda as vulnerabilidades junto com os ativos.",text:"O caso Marriott se tornou o exemplo definitivo de risco cibernético em M&A:\n\n• Due diligence de segurança é essencial antes de qualquer aquisição\n• Tempo de permanência (dwell time) de atacantes pode ser medido em anos\n• Criptografia de dados em repouso precisa ser obrigatória\n• Monitoramento contínuo deve acompanhar integrações de sistemas\n• Privacidade e compliance (GDPR) amplificam consequências\n• A segurança do que você compra se torna sua responsabilidade\n\nVocê não herda só ativos — herda riscos.",env:"hotel",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}],mood:"resolution"},
+  ]
+},
+{
+  id:"mgm", company:"MGM Resorts", title:"MGM Resorts Cyberattack", year:"2023", type:"Engenharia social + ransomware", accent:"#A3FF7A",
+  scenes:[
+    { title:"Las Vegas Conectada",narr:"A MGM Resorts operava alguns dos hotéis e cassinos mais famosos do mundo em Las Vegas: Bellagio, MGM Grand, Mandalay Bay. Tudo conectado digitalmente.",text:"A MGM Resorts International era uma das maiores empresas de entretenimento e hospitalidade do mundo, operando 31 destinos de hotel e jogo globalmente. Em Las Vegas, seu portfólio incluía ícones como Bellagio, MGM Grand, Mandalay Bay, Aria e The Cosmopolitan.\n\nCheck-in digital, chaves de quarto no celular, máquinas caça-níqueis em rede, sistemas de reserva unificados — toda a operação dependia de uma malha digital integrada.",env:"hotel",figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"walking"},{p:[-1,0,0],a:"walking"},{p:[2,0,0],a:"typing"}],mood:"calm"},
+    { title:"Uma Ligação para o Help Desk",narr:"O ataque começou com algo impensavelmente simples: uma ligação telefônica. Um membro do grupo Scattered Spider ligou para o help desk da MGM se passando por um funcionário.",text:"O grupo Scattered Spider (também rastreado como UNC3944) era composto majoritariamente por jovens de língua inglesa, nativos digitais que dominavam técnicas de engenharia social.\n\nUm membro do grupo encontrou informações de um funcionário da MGM no LinkedIn. Com o nome, cargo e alguns detalhes pessoais em mãos, ele ligou para o help desk de TI da MGM se passando por esse funcionário, dizendo que estava tendo problemas com sua conta. Em uma ligação de aproximadamente 10 minutos, convenceu o atendente a resetar as credenciais.",env:"dark_room",figures:[{p:[0,0,0],a:"phone",c:"#A3FF7A"}],mood:"tense"},
+    { title:"Credenciais Resetadas",narr:"O atendente do help desk resetou a senha e forneceu as novas credenciais ao atacante. Com esse acesso, o Scattered Spider conseguiu entrar na rede interna da MGM.",text:"O atendente do help desk seguiu o procedimento padrão de reset de senha — mas o procedimento não incluía verificação robusta de identidade. Não havia callback para um número registrado, não havia verificação biométrica, não havia confirmação por canais alternativos.\n\nCom as credenciais resetadas, o atacante fez login na rede corporativa da MGM. A partir desse ponto, ele instalou ferramentas de acesso remoto e começou a mapear a infraestrutura. O grupo Scattered Spider havia penetrado um império bilionário com uma simples ligação telefônica.",env:"server_room",figures:[{p:[0,0,0],a:"typing",c:"#A3FF7A"},{p:[2,0,0],a:"sneaking",c:"#FF5D9E"}],mood:"alert"},
+    { title:"ALPHV/BlackCat Entra",narr:"O Scattered Spider era afiliado do ransomware ALPHV/BlackCat. Uma vez dentro da rede, eles deployaram o ransomware em toda a infraestrutura da MGM.",text:"O Scattered Spider operava como afiliado do grupo de ransomware ALPHV, também conhecido como BlackCat — um dos ransomware-as-a-service mais sofisticados em operação. Uma vez com acesso privilegiado à rede, eles deployaram a carga de ransomware.\n\nO malware se espalhou rapidamente pelas redes da MGM, criptografando servidores e sistemas críticos. A resposta da MGM foi desligar todos os sistemas para conter a propagação — uma decisão que teria consequências operacionais massivas.",env:"server_room",figures:[{p:[0,0,0],a:"typing",c:"#FF5D9E"},{p:[2,0,0],a:"typing",c:"#FF5D9E"}],mood:"critical"},
+    { title:"Caos em Las Vegas",narr:"Chaves de quartos pararam de funcionar. Máquinas caça-níqueis desligaram. Check-in voltou a ser feito com papel. Elevadores pararam. O sistema de reservas caiu. O caos durou 10 dias.",text:"O impacto foi imediato e visível para todos os hóspedes:\n\n• Chaves digitais de quarto pararam de funcionar\n• Máquinas caça-níqueis exibiam telas de erro ou desligavam\n• O sistema de check-in/check-out ficou inoperante — recepção voltou a usar formulários em papel\n• O site e o app da MGM ficaram fora do ar\n• Elevadores tiveram problemas de funcionamento\n• Sistemas de ponto de venda em restaurantes e bares falharam\n\nEra surreal: um dos destinos mais tecnológicos do mundo operando como se fosse os anos 70.",env:"hotel",figures:[{p:[0,0,0],a:"standing"},{p:[1,0,0],a:"standing"},{p:[2,0,0],a:"standing"},{p:[-1,0,0],a:"phone"}],mood:"critical"},
+    { title:"$100 Milhões em Perdas",narr:"A MGM estimou o impacto financeiro em mais de 100 milhões de dólares. Perdas de receita, custos de remediação e uma queda significativa no valor das ações.",text:"A MGM Resorts reportou um impacto financeiro de aproximadamente $100 milhões em seu relatório do terceiro trimestre de 2023. Esse valor incluía:\n\n• Perda de receita de 10 dias de operação degradada\n• Custos de investigação e remediação\n• Custos de notificação e monitoramento de crédito\n• Honorários de consultores de segurança e crise\n\nA empresa se recusou a pagar o resgate exigido — ao contrário da Caesars Entertainment, que sofreu um ataque similar do mesmo grupo e pagou $15 milhões para evitar vazamento de dados.",env:"boardroom",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"phone"}],mood:"critical"},
+    { title:"A Lição: Humanos São o Perímetro",narr:"O MGM hack provou que engenharia social é devastadoramente eficaz. Help desks são portas de entrada. Verificação de identidade humana é segurança crítica.",text:"O caso MGM Resorts é o caso definitivo sobre engenharia social na era moderna:\n\n• Uma ligação telefônica de 10 minutos comprometeu uma empresa de $33 bilhões\n• Help desks são pontos de entrada de alto risco que precisam de verificação robusta\n• Engenharia social contorna qualquer tecnologia de segurança\n• Treinamento de conscientização deve incluir cenários de impersonação\n• MFA resistente a phishing é essencial\n• Operações altamente conectadas precisam de segmentação e fallbacks\n\nA segurança humana é o primeiro e último perímetro.",env:"hotel",figures:[{p:[0,0,0],a:"standing"},{p:[1.5,0,0],a:"standing"}],mood:"resolution"},
+  ]
+},
+];
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 2 — 3D STICK FIGURE ENGINE                   ║
+   ╚═══════════════════════════════════════════════════════╝ */
+class StickScene {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.9;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color('#040810');
+    this.scene.fog = new THREE.FogExp2('#040810', 0.06);
+    this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+    this.camera.position.set(0, 2.5, 6);
+    this.camera.lookAt(0, 1, 0);
+    this.figures = [];
+    this.time = 0;
+    this._setupLights();
+    this._buildFloor();
+    this.animId = null;
+  }
+
+  _setupLights() {
+    this.scene.add(new THREE.AmbientLight('#1a2030', 0.6));
+    const main = new THREE.DirectionalLight('#58F2FF', 0.4);
+    main.position.set(2, 5, 3);
+    this.scene.add(main);
+    const rim = new THREE.PointLight('#FF5D9E', 0.3, 15);
+    rim.position.set(-3, 3, -2);
+    this.scene.add(rim);
+    this.accentLight = new THREE.PointLight('#58F2FF', 0.5, 12);
+    this.accentLight.position.set(0, 2, 2);
+    this.scene.add(this.accentLight);
+  }
+
+  _buildFloor() {
+    const floorMat = new THREE.MeshStandardMaterial({ color: '#0a0e18', roughness: 0.9, metalness: 0.1 });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    this.scene.add(floor);
+    // Grid
+    const gridMat = new THREE.LineBasicMaterial({ color: '#58F2FF', transparent: true, opacity: 0.06 });
+    for (let i = -10; i <= 10; i++) {
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(i, 0.01, -10), new THREE.Vector3(i, 0.01, 10)]);
+      this.scene.add(new THREE.Line(g, gridMat));
+      const g2 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-10, 0.01, i), new THREE.Vector3(10, 0.01, i)]);
+      this.scene.add(new THREE.Line(g2, gridMat));
+    }
+  }
+
+  resize() {
+    const w = this.canvas.parentElement.clientWidth;
+    const h = this.canvas.parentElement.clientHeight;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  createFigure(color = '#e8f4f8') {
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15, roughness: 0.6 });
+    const g = new THREE.Group();
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 12), mat);
+    head.position.y = 1.72;
+    g.add(head);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.65, 8), mat);
+    body.position.y = 1.27;
+    g.add(body);
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6), mat);
+    armL.position.set(-0.22, 1.4, 0);
+    armL.rotation.z = 0.6;
+    g.add(armL);
+    const armR = armL.clone();
+    armR.position.set(0.22, 1.4, 0);
+    armR.rotation.z = -0.6;
+    g.add(armR);
+    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6), mat);
+    legL.position.set(-0.1, 0.6, 0);
+    g.add(legL);
+    const legR = legL.clone();
+    legR.position.set(0.1, 0.6, 0);
+    g.add(legR);
+    this.scene.add(g);
+    return { group: g, armL, armR, legL, legR, head };
+  }
+
+  createDesk(x, z, color = '#1a2030') {
+    const g = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.06, 0.6), new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.5 }));
+    top.position.y = 0.85;
+    g.add(top);
+    const legMat = new THREE.MeshStandardMaterial({ color: '#12161F', roughness: 0.6 });
+    [[-0.5, 0.42, -0.2], [0.5, 0.42, -0.2], [-0.5, 0.42, 0.2], [0.5, 0.42, 0.2]].forEach(p => {
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.85, 6), legMat);
+      l.position.set(...p);
+      g.add(l);
+    });
+    // Monitor on desk
+    const monMat = new THREE.MeshStandardMaterial({ color: '#080c12', emissive: '#58F2FF', emissiveIntensity: 0.08, roughness: 0.3 });
+    const mon = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.04), monMat);
+    mon.position.set(0, 1.12, -0.15);
+    g.add(mon);
+    const screenMat = new THREE.MeshBasicMaterial({ color: '#0a1a2e' });
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.32), screenMat);
+    screen.position.set(0, 1.12, -0.128);
+    g.add(screen);
+    g.position.set(x, 0, z);
+    this.scene.add(g);
+    return g;
+  }
+
+  createServerRack(x, z, color = '#58F2FF') {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 2.0, 0.5), new THREE.MeshStandardMaterial({ color: '#0c1018', roughness: 0.7, metalness: 0.3 }));
+    body.position.y = 1.0;
+    g.add(body);
+    const lightMat = new THREE.MeshBasicMaterial({ color });
+    for (let i = 0; i < 8; i++) {
+      const led = new THREE.Mesh(new THREE.SphereGeometry(0.015, 6, 6), lightMat);
+      led.position.set(-0.2, 0.3 + i * 0.2, 0.26);
+      g.add(led);
+    }
+    g.position.set(x, 0, z);
+    this.scene.add(g);
+    return g;
+  }
+
+  createBuilding(x, z, w = 2, h = 3, color = '#0e1420') {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, 1.5), new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+    body.position.y = h / 2;
+    g.add(body);
+    const winMat = new THREE.MeshBasicMaterial({ color: '#58F2FF', transparent: true, opacity: 0.08 });
+    for (let r = 0; r < Math.floor(h / 0.5); r++)
+      for (let c = 0; c < Math.floor(w / 0.4); c++) {
+        const win = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.22), winMat);
+        win.position.set(-w/2 + 0.3 + c * 0.4, 0.5 + r * 0.5, 0.76);
+        g.add(win);
+      }
+    g.position.set(x, 0, z);
+    this.scene.add(g);
+    return g;
+  }
+
+  clearScene() {
+    while (this.scene.children.length > 0) this.scene.remove(this.scene.children[0]);
+    this.figures = [];
+    this._setupLights();
+    this._buildFloor();
+  }
+
+  setupScene(sceneData, accent) {
+    this.clearScene();
+    this.accentLight.color.set(accent);
+    const env = sceneData.env;
+    // Environment
+    if (env === 'office' || env === 'boardroom') {
+      this.createDesk(-1, 0); this.createDesk(1.5, 0);
+      if (env === 'boardroom') { this.createDesk(0, -1.5); }
+    } else if (env === 'server_room') {
+      this.createServerRack(-2, -1, accent); this.createServerRack(-1, -1, accent);
+      this.createServerRack(1, -1, accent); this.createServerRack(2, -1, accent);
+    } else if (env === 'dark_room') {
+      this.createDesk(0, 0);
+      this.scene.fog = new THREE.FogExp2('#020408', 0.12);
+    } else if (env === 'city' || env === 'government') {
+      this.createBuilding(-3, -3, 2, 4); this.createBuilding(0, -4, 2.5, 5);
+      this.createBuilding(3, -3, 1.8, 3.5);
+    } else if (env === 'retail') {
+      this.createDesk(-1.5, 0); this.createDesk(1.5, 0);
+      this.createBuilding(0, -3, 6, 2.5);
+    } else if (env === 'hotel') {
+      this.createBuilding(0, -3, 4, 5); this.createDesk(-1, 1); this.createDesk(1, 1);
+    } else if (env === 'pipeline') {
+      // Pipes
+      const pipeMat = new THREE.MeshStandardMaterial({ color: '#2a3040', roughness: 0.5, metalness: 0.6 });
+      for (let i = 0; i < 3; i++) {
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 12, 8), pipeMat);
+        pipe.rotation.z = Math.PI / 2;
+        pipe.position.set(0, 0.5 + i * 0.5, -2 + i * 0.3);
+        this.scene.add(pipe);
+      }
+    }
+    // Figures
+    if (sceneData.figures) {
+      sceneData.figures.forEach(fd => {
+        const fig = this.createFigure(fd.c || '#e8f4f8');
+        fig.group.position.set(fd.p[0], 0, fd.p[2] || 0);
+        fig.action = fd.a;
+        this.figures.push(fig);
+      });
+    }
+    // Floating particles
+    const pGeo = new THREE.BufferGeometry();
+    const pPos = new Float32Array(80 * 3);
+    for (let i = 0; i < 80; i++) { pPos[i*3]=(Math.random()-.5)*12; pPos[i*3+1]=Math.random()*4; pPos[i*3+2]=(Math.random()-.5)*8; }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+    const pMat = new THREE.PointsMaterial({ color: accent, size: 0.03, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending });
+    this.scene.add(new THREE.Points(pGeo, pMat));
+  }
+
+  animate(t) {
+    this.time = t;
+    this.figures.forEach(f => {
+      const a = f.action;
+      if (a === 'typing') {
+        f.armL.rotation.z = 0.3 + Math.sin(t * 8) * 0.15;
+        f.armR.rotation.z = -0.3 - Math.sin(t * 8 + 1) * 0.15;
+        f.armL.rotation.x = -0.5; f.armR.rotation.x = -0.5;
+      } else if (a === 'walking') {
+        f.legL.rotation.x = Math.sin(t * 3) * 0.3;
+        f.legR.rotation.x = -Math.sin(t * 3) * 0.3;
+        f.armL.rotation.x = -Math.sin(t * 3) * 0.25;
+        f.armR.rotation.x = Math.sin(t * 3) * 0.25;
+        f.group.position.x += Math.sin(t * 0.5) * 0.003;
+      } else if (a === 'phone') {
+        f.armR.rotation.z = -1.8;
+        f.armR.rotation.x = -0.3;
+      } else if (a === 'sneaking') {
+        f.group.position.y = -0.15;
+        f.legL.rotation.x = Math.sin(t * 2) * 0.2;
+        f.legR.rotation.x = -Math.sin(t * 2) * 0.2;
+        f.group.position.x += Math.sin(t * 0.3) * 0.004;
+      } else if (a === 'carrying') {
+        f.armL.rotation.z = 0.1; f.armR.rotation.z = -0.1;
+        f.armL.rotation.x = -0.8; f.armR.rotation.x = -0.8;
+        f.legL.rotation.x = Math.sin(t * 2.5) * 0.15;
+        f.legR.rotation.x = -Math.sin(t * 2.5) * 0.15;
+      }
+      f.head.position.y = 1.72 + Math.sin(t * 1.5) * 0.01;
+    });
+    this.camera.position.x = Math.sin(t * 0.2) * 0.3;
+    this.camera.position.y = 2.3 + Math.sin(t * 0.15) * 0.1;
+    this.camera.lookAt(0, 1.2, 0);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  start() {
+    this.resize();
+    const loop = () => { this.animId = requestAnimationFrame(loop); this.time += 0.016; this.animate(this.time); };
+    loop();
+  }
+  stop() { if (this.animId) cancelAnimationFrame(this.animId); this.animId = null; }
+}
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 3 — UI CONTROLLERS                           ║
+   ╚═══════════════════════════════════════════════════════╝ */
+
+// Create two stick-figure renderers (text and audio modes)
+let textStick = null, audioStick = null;
+let activeInc = null;
+let ttsEnabled = false;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => { s.classList.add('hidden'); s.style.pointerEvents = 'none'; });
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  el.style.pointerEvents = 'auto';
+}
+
+// Build menu
+const incList = document.getElementById('inc-list');
+INCIDENTS.forEach((inc, idx) => {
+  const card = document.createElement('div');
+  card.className = 'inc-card';
+  card.innerHTML = `<div class="inc-dot" style="background:${inc.accent}"></div><div class="inc-info"><div class="inc-name">${inc.company}</div><div class="inc-meta">${inc.year} · ${inc.type}</div></div><div class="inc-arrow">›</div>`;
+  card.onclick = (e) => { e.stopPropagation(); selectIncident(idx); };
+  incList.appendChild(card);
+});
+
+function selectIncident(idx) {
+  activeInc = INCIDENTS[idx];
+  document.getElementById('mode-case-name').textContent = activeInc.title;
+  showScreen('mode-screen');
+}
+
+// Mode selection
+document.getElementById('mode-text').onclick = (e) => { e.stopPropagation(); openTextMode(); };
+document.getElementById('mode-audio').onclick = (e) => { e.stopPropagation(); openAudioMode(); };
+document.getElementById('mode-back').onclick = (e) => { e.stopPropagation(); showScreen('menu-screen'); };
+
+/* ── TEXT MODE ── */
+function openTextMode() {
+  showScreen('text-screen');
+  document.getElementById('text-case-title').textContent = activeInc.company.toUpperCase();
+  // Build text content
+  const body = document.getElementById('text-body');
+  body.innerHTML = '';
+  body.scrollTop = 0;
+  activeInc.scenes.forEach((sc, i) => {
+    const block = document.createElement('div');
+    block.className = 'text-scene-block';
+    block.dataset.idx = i;
+    block.innerHTML = `<div class="text-scene-num">CENA ${String(i+1).padStart(2,'0')}</div>
+      <div class="text-scene-title">${sc.title}</div>
+      <div class="text-scene-content">${sc.text.replace(/\n/g,'<br><br>')}</div>
+      <div class="text-scene-lesson">🛡 ${sc.narr}</div>`;
+    body.appendChild(block);
+  });
+  // Init 3D
+  if (!textStick) textStick = new StickScene(document.getElementById('text-3d-canvas'));
+  textStick.setupScene(activeInc.scenes[0], activeInc.accent);
+  textStick.start();
+  // Scroll handler for fade + scene sync
+  body.onscroll = () => {
+    const blocks = body.querySelectorAll('.text-scene-block');
+    const bodyRect = body.getBoundingClientRect();
+    let currentIdx = 0;
+    blocks.forEach((b, i) => {
+      const r = b.getBoundingClientRect();
+      const relTop = r.top - bodyRect.top;
+      // Fade blocks that are scrolled past
+      if (relTop < -r.height * 0.3) { b.classList.add('faded'); }
+      else { b.classList.remove('faded'); }
+      // Determine current visible scene
+      if (relTop < bodyRect.height * 0.5 && relTop > -r.height * 0.5) currentIdx = i;
+    });
+    // Update 3D scene based on scroll position
+    if (activeInc && activeInc.scenes[currentIdx]) {
+      textStick.setupScene(activeInc.scenes[currentIdx], activeInc.accent);
+    }
+  };
+}
+
+document.getElementById('text-back').onclick = (e) => { e.stopPropagation(); if (textStick) textStick.stop(); showScreen('mode-screen'); };
+
+/* ── AUDIO MODE ── */
+let audioSceneIdx = 0;
+let isPlaying = false;
+let wordTimers = [];
+
+function openAudioMode() {
+  showScreen('audio-screen');
+  document.getElementById('audio-case-title').textContent = activeInc.company.toUpperCase();
+  audioSceneIdx = 0;
+  if (!audioStick) audioStick = new StickScene(document.getElementById('audio-3d-canvas'));
+  loadAudioScene();
+}
+
+function loadAudioScene() {
+  if (!activeInc) return;
+  const sc = activeInc.scenes[audioSceneIdx];
+  audioStick.setupScene(sc, activeInc.accent);
+  audioStick.start();
+  // Clear subs
+  const subsEl = document.getElementById('audio-subs');
+  subsEl.innerHTML = '';
+  document.getElementById('audio-progress-fill').style.width = `${((audioSceneIdx + 1) / activeInc.scenes.length) * 100}%`;
+  document.getElementById('audio-play').textContent = '▶ PLAY';
+  isPlaying = false;
+}
+
+function playAudioScene() {
+  if (!activeInc || isPlaying) return;
+  isPlaying = true;
+  document.getElementById('audio-play').textContent = '⏸ PAUSE';
+  const sc = activeInc.scenes[audioSceneIdx];
+  const text = sc.narr;
+  const subsEl = document.getElementById('audio-subs');
+  subsEl.innerHTML = '';
+
+  // Cancel any previous timers
+  wordTimers.forEach(t => clearTimeout(t));
+  wordTimers = [];
+
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = 'pt-BR';
+    utt.rate = 0.85;
+    utt.pitch = 0.9;
+
+    // Word-level subtitle sync
+    const words = text.split(/\s+/);
+    let wordIdx = 0;
+    const avgWordDuration = (text.length * 55) / words.length; // rough ms per word
+
+    // Create word spans
+    const spans = words.map(w => {
+      const span = document.createElement('span');
+      span.className = 'sub-word';
+      span.textContent = w;
+      subsEl.appendChild(span);
+      return span;
+    });
+
+    // Reveal words progressively
+    function revealWord(idx) {
+      if (idx >= spans.length) return;
+      spans[idx].classList.add('visible');
+      // Check if subs area is overflowing — fade old words
+      const subsRect = subsEl.getBoundingClientRect();
+      spans.forEach((s, i) => {
+        if (i < idx - 8 && !s.classList.contains('fading')) {
+          s.classList.add('fading');
+        }
+      });
+    }
+
+    utt.onboundary = (event) => {
+      if (event.name === 'word' && wordIdx < spans.length) {
+        revealWord(wordIdx);
+        wordIdx++;
+      }
+    };
+
+    // Fallback timer-based reveal if onboundary not supported
+    let fallbackStarted = false;
+    utt.onstart = () => {
+      // Start fallback after small delay to check if onboundary fires
+      setTimeout(() => {
+        if (wordIdx === 0) {
+          fallbackStarted = true;
+          words.forEach((_, i) => {
+            const timer = setTimeout(() => revealWord(i), i * avgWordDuration);
+            wordTimers.push(timer);
+          });
+        }
+      }, 300);
+    };
+
+    utt.onend = () => {
+      // Reveal any remaining
+      spans.forEach(s => s.classList.add('visible'));
+      isPlaying = false;
+      document.getElementById('audio-play').textContent = '▶ PLAY';
+      // Auto advance after pause
+      setTimeout(() => {
+        if (audioSceneIdx < activeInc.scenes.length - 1) {
+          audioSceneIdx++;
+          loadAudioScene();
+          setTimeout(() => playAudioScene(), 600);
+        }
+      }, 1500);
+    };
+
+    speechSynthesis.speak(utt);
+  }
+}
+
+function pauseAudio() {
+  if ('speechSynthesis' in window) {
+    if (speechSynthesis.speaking && !speechSynthesis.paused) {
+      speechSynthesis.pause();
+      document.getElementById('audio-play').textContent = '▶ PLAY';
+    } else if (speechSynthesis.paused) {
+      speechSynthesis.resume();
+      document.getElementById('audio-play').textContent = '⏸ PAUSE';
+    }
+  }
+}
+
+document.getElementById('audio-play').onclick = (e) => {
+  e.stopPropagation();
+  if (!isPlaying) playAudioScene();
+  else pauseAudio();
+};
+document.getElementById('audio-skip').onclick = (e) => {
+  e.stopPropagation();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  wordTimers.forEach(t => clearTimeout(t)); wordTimers = [];
+  isPlaying = false;
+  if (activeInc && audioSceneIdx < activeInc.scenes.length - 1) { audioSceneIdx++; loadAudioScene(); }
+  else { closeAllPlayers(); showScreen('menu-screen'); }
+};
+document.getElementById('audio-back').onclick = (e) => {
+  e.stopPropagation();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  wordTimers.forEach(t => clearTimeout(t)); wordTimers = [];
+  isPlaying = false;
+  if (audioStick) audioStick.stop();
+  showScreen('mode-screen');
+};
+
+function closeAllPlayers() {
+  if (textStick) textStick.stop();
+  if (audioStick) audioStick.stop();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  wordTimers.forEach(t => clearTimeout(t)); wordTimers = [];
+  isPlaying = false;
+  activeInc = null;
+}
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 4 — MAIN THREE.JS ROOM SCENE                 ║
+   ╚═══════════════════════════════════════════════════════╝ */
+const STATES = {IDLE:'00_idle',INVITE:'01_invite',ZOOM:'02_zoom',BOOT:'03_boot',PLAY:'04_play',EXIT:'05_exit'};
+const CAM = {
+  [STATES.IDLE]:{pos:[0,0.6,6],tgt:[0,-0.3,0],fov:48},
+  [STATES.INVITE]:{pos:[0,0.4,5],tgt:[0,-0.15,0],fov:46},
+  [STATES.ZOOM]:{pos:[0,0.1,4.5],tgt:[0,0,0],fov:44},
+  [STATES.BOOT]:{pos:[0,0.05,4.3],tgt:[0,0,0],fov:42},
+  [STATES.PLAY]:{pos:[0,0,4.2],tgt:[0,0,0],fov:42},
+  [STATES.EXIT]:{pos:[0,1.0,8],tgt:[0,-0.4,0],fov:50},
+};
+let cur = STATES.IDLE, tPos = new THREE.Vector3(...CAM[STATES.IDLE].pos),
+    tTgt = new THREE.Vector3(...CAM[STATES.IDLE].tgt), tFov = CAM[STATES.IDLE].fov,
+    mouse={x:0,y:0}, hovered=false, clk=new THREE.Clock(), bootProg=0, emI=.9, noiseO=0, lGlitch=0, zoomActive=false;
+
+function svgURL(s){return 'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(s)))}
+const GRID_SVG=`<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="1600" height="900" fill="#050B14"/><g opacity=".18"><path d="M0 150H1600" stroke="#58F2FF"/><path d="M0 300H1600" stroke="#58F2FF"/><path d="M0 450H1600" stroke="#58F2FF"/><path d="M0 600H1600" stroke="#58F2FF"/><path d="M0 750H1600" stroke="#58F2FF"/><path d="M200 0V900" stroke="#58F2FF"/><path d="M400 0V900" stroke="#58F2FF"/><path d="M600 0V900" stroke="#58F2FF"/><path d="M800 0V900" stroke="#58F2FF"/><path d="M1000 0V900" stroke="#58F2FF"/><path d="M1200 0V900" stroke="#58F2FF"/><path d="M1400 0V900" stroke="#58F2FF"/></g><circle cx="800" cy="450" r="220" stroke="#58F2FF" stroke-opacity=".35"/><circle cx="800" cy="450" r="96" stroke="#58F2FF" stroke-opacity=".45"/></svg>`;
+function loadTex(s){const t=new THREE.TextureLoader().load(svgURL(s));t.colorSpace=THREE.SRGBColorSpace;return t}
+
+const R=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+R.setSize(innerWidth,innerHeight);R.setPixelRatio(Math.min(devicePixelRatio,2));
+R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=.95;R.outputColorSpace=THREE.SRGBColorSpace;
+document.body.prepend(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color('#020509');S.fog=new THREE.FogExp2('#060A0F',.012);
+const cam=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100);
+cam.position.set(...CAM[STATES.IDLE].pos);
+const camTgt=new THREE.Vector3(...CAM[STATES.IDLE].tgt);
+
+const comp=new EffectComposer(R);comp.addPass(new RenderPass(S,cam));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.65,.5,.72);comp.addPass(bloom);
+const CS={uniforms:{tDiffuse:{value:null},uI:{value:.0012}},vertexShader:`varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`uniform sampler2D tDiffuse;uniform float uI;varying vec2 v;void main(){vec2 d=uI*vec2(1.,.5);gl_FragColor=vec4(texture2D(tDiffuse,v+d).r,texture2D(tDiffuse,v).g,texture2D(tDiffuse,v-d).b,1.);}`};
+const cP=new ShaderPass(CS);comp.addPass(cP);
+const GS={uniforms:{tDiffuse:{value:null},uT:{value:0},uI:{value:.04}},vertexShader:`varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`uniform sampler2D tDiffuse;uniform float uT,uI;varying vec2 v;float r(vec2 c){return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453);}void main(){vec4 c=texture2D(tDiffuse,v);gl_FragColor=vec4(c.rgb+vec3(r(v+vec2(uT))*uI),1.);}`};
+const gP=new ShaderPass(GS);comp.addPass(gP);
+
+// Screen shader
+const scrMat=new THREE.ShaderMaterial({
+  uniforms:{uT:{value:0},uI:{value:.9},uGrid:{value:loadTex(GRID_SVG)},uC:{value:new THREE.Color('#00D4FF')},uS:{value:new THREE.Color('#FF5D9E')},uN:{value:0},uB:{value:0}},
+  vertexShader:`varying vec2 v;void main(){v=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`uniform float uT,uI,uN,uB;uniform vec3 uC,uS;uniform sampler2D uGrid;varying vec2 v;
+float rn(vec2 c){return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453);}
+void main(){float b=.92+.08*sin(uT*1.2);float i=uI*b;vec4 g=texture2D(uGrid,v);float s=.95+.05*sin(v.y*900.+uT*3.);vec2 c=v-.5;float vi=1.-dot(c,c)*1.2;vec3 gl=uC*i*vi*s;vec3 base=mix(gl,g.rgb*1.3,g.a*.6);
+if(uB>.3){base=mix(base,vec3(.01,.02,.04),uB*.7);base*=.85+.15*sin(uT*15.);base+=uS*.08*(.5+.5*sin(uT*8.))*uB;}
+if(uN>.01){base+=vec3(rn(v+vec2(uT*.3))*uN*.6);}
+gl_FragColor=vec4(base,1.);}`
+});
+
+// Materials
+const M={
+  w:new THREE.MeshStandardMaterial({color:'#111827',roughness:.92,metalness:.15}),
+  f:new THREE.MeshStandardMaterial({color:'#0A0E16',roughness:.95,metalness:.1}),
+  c:new THREE.MeshStandardMaterial({color:'#0D1117',roughness:1,transparent:true,opacity:.55}),
+  d:new THREE.MeshStandardMaterial({color:'#1A1F2E',roughness:.35,metalness:.65}),
+  dr:new THREE.MeshStandardMaterial({color:'#1F2744',roughness:.02,metalness:1,transparent:true,opacity:.32}),
+  mb:new THREE.MeshStandardMaterial({color:'#0F1319',roughness:.28,metalness:.75}),
+  bz:new THREE.MeshStandardMaterial({color:'#080C12',roughness:.4,metalness:.6}),
+  gl:new THREE.MeshPhysicalMaterial({color:'#0A1A2E',roughness:.02,transparent:true,opacity:.22,clearcoat:.4,reflectivity:.9}),
+  st:new THREE.MeshStandardMaterial({color:'#1A1F2E',roughness:.4,metalness:.6}),
+};
+
+// Helper: add mesh at position (Three.js add() returns parent, not child!)
+function addAt(parent, mesh, x, y, z) { mesh.position.set(x, y, z); parent.add(mesh); return mesh; }
+
+// Room
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(30,12,.3),M.w), 0,0,-7);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(30,.2,15),M.f), 0,-3,0);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(30,.2,15),M.c), 0,5,0);
+const sw=new THREE.MeshStandardMaterial({color:'#0D1117',roughness:.94});
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(.2,12,15),sw), -15,0,0);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(.2,12,15),sw), 15,0,0);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(7,.18,2.8),M.d), 0,-1.6,.5);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(7.2,.04,2.9),M.dr), 0,-1.51,.5);
+const lG=new THREE.BoxGeometry(.1,1.3,.1),lM=new THREE.MeshStandardMaterial({color:'#12161F'});
+[[-3.2,-2.3,-.6],[3.2,-2.3,-.6],[-3.2,-2.3,1.6],[3.2,-2.3,1.6]].forEach(p=>{addAt(S, new THREE.Mesh(lG,lM), ...p)});
+
+// Monitor
+const mGrp=new THREE.Group();mGrp.name='mon';S.add(mGrp);
+mGrp.add(new THREE.Mesh(new THREE.BoxGeometry(4.2,2.9,.35),M.mb));
+const bz=new THREE.Mesh(new THREE.BoxGeometry(4.35,3.02,.12),M.bz);bz.position.z=.17;mGrp.add(bz);
+const gls=new THREE.Mesh(new THREE.PlaneGeometry(3.9,2.55),M.gl);gls.position.z=.24;mGrp.add(gls);
+const emP=new THREE.Mesh(new THREE.PlaneGeometry(3.7,2.4),scrMat);emP.position.z=.235;mGrp.add(emP);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(.22,1.2,.22),M.st), 0,-2,0);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(1.2,.06,.8),M.st), 0,-2.6,.2);
+const kM=new THREE.MeshStandardMaterial({color:'#151A26',roughness:.6,metalness:.4});
+const kb=new THREE.Mesh(new THREE.BoxGeometry(1.6,.06,.5),kM);kb.position.set(0,-1.5,1.5);kb.rotation.x=-.08;S.add(kb);
+addAt(S, new THREE.Mesh(new THREE.BoxGeometry(.3,.08,.45),kM), 1.4,-1.5,1.5);
+
+// Particles
+const DC=200,dG=new THREE.BufferGeometry(),dP=new Float32Array(DC*3),dV=new Float32Array(DC*3),dSz=new Float32Array(DC);
+for(let i=0;i<DC;i++){dP[i*3]=(Math.random()-.5)*16;dP[i*3+1]=(Math.random()-.5)*8;dP[i*3+2]=(Math.random()-.5)*12;dV[i*3]=(Math.random()-.5)*.002;dV[i*3+1]=Math.random()*.003+.001;dV[i*3+2]=(Math.random()-.5)*.002;dSz[i]=Math.random()*3+1}
+dG.setAttribute('position',new THREE.BufferAttribute(dP,3));dG.setAttribute('size',new THREE.BufferAttribute(dSz,1));
+const duM=new THREE.ShaderMaterial({uniforms:{uC:{value:new THREE.Color('#58F2FF')},uO:{value:.3},uPR:{value:R.getPixelRatio()}},vertexShader:`attribute float size;uniform float uPR;void main(){vec4 m=modelViewMatrix*vec4(position,1.);gl_PointSize=size*uPR*(80./-m.z);gl_Position=projectionMatrix*m;}`,fragmentShader:`uniform vec3 uC;uniform float uO;void main(){float d=length(gl_PointCoord-.5);if(d>.5)discard;gl_FragColor=vec4(uC,smoothstep(.5,.1,d)*uO);}`,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+S.add(new THREE.Points(dG,duM));
+
+// Lights
+S.add(new THREE.AmbientLight('#1a2030',0.8));
+const dL=new THREE.DirectionalLight('#58F2FF',0.3);dL.position.set(2,4,3);S.add(dL);
+const cL=new THREE.PointLight('#00D4FF',12,25,2);cL.position.set(0,1.5,3.5);S.add(cL);
+addAt(S, new THREE.PointLight('#00D4FF',5,15,2), 0,-.5,.8);
+addAt(S, new THREE.PointLight('#2a2a5a',6,20,2), -5,2,-3);
+addAt(S, new THREE.PointLight('#2a2a5a',5,20,2), 5,2,-3);
+const rL=new THREE.PointLight('#FF5D9E',0,10,2);rL.position.set(0,.5,2);S.add(rL);
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 5 — MONITOR OVERLAY TRACKING                 ║
+   ╚═══════════════════════════════════════════════════════╝ */
+const monOverlay = document.getElementById('monitor-overlay');
+// Monitor screen plane corners in local space (PlaneGeometry 3.7 x 2.4 at z=0.235)
+const screenCorners = [
+  new THREE.Vector3(-1.85, 1.2, 0.24),
+  new THREE.Vector3(1.85, 1.2, 0.24),
+  new THREE.Vector3(-1.85, -1.2, 0.24),
+  new THREE.Vector3(1.85, -1.2, 0.24),
+];
+const projected = new THREE.Vector3();
+
+function updateMonitorOverlay() {
+  if (cur !== STATES.PLAY) { monOverlay.classList.remove('visible'); return; }
+  monOverlay.classList.add('visible');
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  screenCorners.forEach(corner => {
+    projected.copy(corner);
+    mGrp.localToWorld(projected);
+    projected.project(cam);
+    const sx = (projected.x * 0.5 + 0.5) * innerWidth;
+    const sy = (-projected.y * 0.5 + 0.5) * innerHeight;
+    minX = Math.min(minX, sx); maxX = Math.max(maxX, sx);
+    minY = Math.min(minY, sy); maxY = Math.max(maxY, sy);
+  });
+  const pad = 4;
+  monOverlay.style.left = (minX - pad) + 'px';
+  monOverlay.style.top = (minY - pad) + 'px';
+  monOverlay.style.width = (maxX - minX + pad * 2) + 'px';
+  monOverlay.style.height = (maxY - minY + pad * 2) + 'px';
+}
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 6 — INPUT & STATE MACHINE                    ║
+   ╚═══════════════════════════════════════════════════════╝ */
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+
+function onMove(e){mouse.x=(e.clientX/innerWidth)*2-1;mouse.y=-(e.clientY/innerHeight)*2+1;ptr.set(mouse.x,mouse.y);const g=document.getElementById('cursor-glow');g.style.left=e.clientX+'px';g.style.top=e.clientY+'px'}
+function checkHover(){ray.setFromCamera(ptr,cam);const h=ray.intersectObjects(mGrp.children,true);const was=hovered;hovered=h.length>0;if(hovered&&!was&&cur===STATES.IDLE)setState(STATES.INVITE);else if(!hovered&&was&&cur===STATES.INVITE)setState(STATES.IDLE);document.body.style.cursor=hovered?'pointer':'default'}
+
+function onDown(e){
+  const cx=e.clientX??(e.touches?.[0]?.clientX)??0;
+  const cy=e.clientY??(e.touches?.[0]?.clientY)??0;
+  ptr.set((cx/innerWidth)*2-1,-(cy/innerHeight)*2+1);
+  ray.setFromCamera(ptr,cam);
+  const hits=ray.intersectObjects(mGrp.children,true);
+  const onMon=hits.length>0;
+
+  if(onMon&&(cur===STATES.IDLE||cur===STATES.INVITE)&&!zoomActive){
+    zoomActive=true;
+    setState(STATES.ZOOM);
+    setTimeout(()=>setState(STATES.BOOT),700);
+    setTimeout(()=>{setState(STATES.PLAY);zoomActive=false},2800);
+  } else if(!onMon&&cur===STATES.PLAY&&!zoomActive){
+    // Check if click is inside the overlay UI
+    const ovr=monOverlay.getBoundingClientRect();
+    if(cx<ovr.left||cx>ovr.right||cy<ovr.top||cy>ovr.bottom){
+      closeAllPlayers();
+      setState(STATES.EXIT);
+      setTimeout(()=>setState(STATES.IDLE),1400);
+    }
+  } else if(cur===STATES.EXIT)setState(STATES.IDLE);
+}
+
+addEventListener('pointermove',onMove);
+addEventListener('pointerdown',onDown);
+addEventListener('touchstart',(e)=>{if(e.touches.length){const t=e.touches[0];mouse.x=(t.clientX/innerWidth)*2-1;mouse.y=-(t.clientY/innerHeight)*2+1;ptr.set(mouse.x,mouse.y);onDown(t)}},{passive:true});
+
+function setState(s){
+  cur=s;const c=CAM[s];tPos.set(...c.pos);tTgt.set(...c.tgt);tFov=c.fov;
+  document.getElementById('state-label').textContent=s;
+  const scan=document.getElementById('scanlines');
+  switch(s){
+    case STATES.IDLE:emI=.9;noiseO=0;scan.style.opacity='0';rL.intensity=0;bloom.strength=.65;cP.uniforms.uI.value=.0012;
+      monOverlay.classList.remove('visible');break;
+    case STATES.INVITE:emI=1;bloom.strength=.8;break;
+    case STATES.ZOOM:emI=1;bloom.strength=1;cP.uniforms.uI.value=.004;break;
+    case STATES.BOOT:emI=.1;noiseO=.8;scan.style.opacity='1';rL.intensity=4;bloom.strength=.4;cP.uniforms.uI.value=.008;bootProg=0;break;
+    case STATES.PLAY:emI=.6;noiseO=0;scan.style.opacity='.1';rL.intensity=.3;bloom.strength=.5;cP.uniforms.uI.value=.001;
+      showScreen('menu-screen');break;
+    case STATES.EXIT:emI=.9;noiseO=0;scan.style.opacity='0';rL.intensity=0;bloom.strength=.6;cP.uniforms.uI.value=.0012;
+      monOverlay.classList.remove('visible');break;
+  }
+}
+
+/* ╔═══════════════════════════════════════════════════════╗
+   ║  SECTION 7 — MAIN ANIMATION LOOP                      ║
+   ╚═══════════════════════════════════════════════════════╝ */
+function lerp(a,b,t){return a+(b-a)*t}
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=clk.getDelta(),el=clk.getElapsedTime(),t=Math.min(dt*3,1);
+  cam.position.lerp(tPos,t);camTgt.lerp(tTgt,t);cam.lookAt(camTgt);
+  cam.fov=lerp(cam.fov,tFov,t);cam.updateProjectionMatrix();
+  if(cur===STATES.IDLE||cur===STATES.INVITE){cam.position.x+=mouse.x*.12*dt*10;cam.position.y+=mouse.y*.06*dt*10}
+  scrMat.uniforms.uT.value=el;
+  scrMat.uniforms.uI.value=lerp(scrMat.uniforms.uI.value,emI,t);
+  scrMat.uniforms.uN.value=lerp(scrMat.uniforms.uN.value,noiseO,t);
+  scrMat.uniforms.uB.value=lerp(scrMat.uniforms.uB.value,cur===STATES.BOOT?1:0,t*.5);
+  mGrp.rotation.y=lerp(mGrp.rotation.y,cur===STATES.INVITE?.035:0,t*.8);
+  const pos=dG.attributes.position.array;
+  for(let i=0;i<DC;i++){pos[i*3]+=dV[i*3];pos[i*3+1]+=dV[i*3+1];pos[i*3+2]+=dV[i*3+2];if(pos[i*3+1]>4)pos[i*3+1]=-4;if(Math.abs(pos[i*3])>8)pos[i*3]*=-.95}
+  dG.attributes.position.needsUpdate=true;
+  cL.intensity=6+2*Math.sin(el*1.5);
+  if(cur===STATES.BOOT){bootProg=Math.min(bootProg+dt*.4,1);if(el-lGlitch>.3+Math.random()*.5){lGlitch=el;cP.uniforms.uI.value=.015+Math.random()*.01;setTimeout(()=>{if(cur===STATES.BOOT)cP.uniforms.uI.value=.008},80)}rL.intensity=2+2*Math.sin(el*8)}
+  gP.uniforms.uT.value=el;gP.uniforms.uI.value=cur===STATES.BOOT?.12:.04;
+  checkHover();
+  updateMonitorOverlay();
+  comp.render();
+}
+
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight);comp.setSize(innerWidth,innerHeight);bloom.resolution.set(innerWidth,innerHeight);duM.uniforms.uPR.value=R.getPixelRatio()});
+addEventListener('message',(e)=>{if(e.data?.type==='breachroom-set-state'&&CAM[e.data.state])setState(e.data.state)});
+
+setState(STATES.IDLE);
+animate();
+console.log('%c[BreachRoom] Loaded — click monitor to enter','color:#58F2FF;font-weight:bold');
+</script>
+</body>
+</html>

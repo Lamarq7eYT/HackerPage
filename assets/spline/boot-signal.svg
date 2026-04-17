@@ -1,0 +1,16 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" fill="#01030A"/>
+  <rect x="220" y="394" width="1160" height="18" rx="9" fill="#111827"/>
+  <rect x="220" y="394" width="720" height="18" rx="9" fill="url(#a)"/>
+  <rect x="220" y="446" width="860" height="8" rx="4" fill="#58F2FF" fill-opacity=".32"/>
+  <rect x="220" y="468" width="640" height="8" rx="4" fill="#FF5D9E" fill-opacity=".26"/>
+  <path d="M220 330H1380" stroke="#58F2FF" stroke-opacity=".12"/>
+  <path d="M220 566H1380" stroke="#58F2FF" stroke-opacity=".12"/>
+  <text x="220" y="370" fill="#58F2FF" fill-opacity=".82" font-family="IBM Plex Mono, monospace" font-size="28" letter-spacing="4">LOADING INCIDENT FILE</text>
+  <defs>
+    <linearGradient id="a" x1="220" y1="403" x2="940" y2="403" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58F2FF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+  </defs>
+</svg>

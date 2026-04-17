@@ -1,0 +1,8 @@
+{
+  "name": "breachroom-scene",
+  "version": "1.0.0",
+  "description": "BreachRoom 3D Scene — cyber-investigation room with Three.js",
+  "scripts": {
+    "dev": "npx -y serve . -l 5174 --cors --no-clipboard"
+  }
+}
