@@ -1,104 +1,46 @@
 # BreachRoom
 
-Kit de landing page pensado para **Framer** com camada 3D em **Spline**. O briefing original esta em `prompt_landing_page_breachroom.pdf`, mas a entrega final foi organizada como handoff real: componentes modulares para o Framer e pacote fechado de direcao/execucao para o Spline.
+Site publicado: https://lamarq7eyt.github.io/HackerPage/
 
-## O que esta pronto
+**BreachRoom** e um ambiente imersivo sobre a historia dos hackers, criado para transformar casos marcantes de seguranca digital em uma experiencia visual, interativa e educativa. A ideia e colocar o visitante dentro de uma sala investigativa, com atmosfera de laboratorio, terminais, sinais de alerta e camadas narrativas que ajudam a entender incidentes reais de forma mais envolvente.
 
-- entrypoint completo em [framer/BreachRoomLanding.tsx](./framer/BreachRoomLanding.tsx)
-- componentes modulares em [framer](./framer)
-- dados editoriais dos incidentes em [framer/incidents.ts](./framer/incidents.ts)
-- blueprint da cena em [spline/BREACHROOM_SPLINE_BLUEPRINT.md](./spline/BREACHROOM_SPLINE_BLUEPRINT.md)
-- storyboard com estados e matriz por incidente em [spline/BREACHROOM_SPLINE_STORYBOARD.md](./spline/BREACHROOM_SPLINE_STORYBOARD.md)
-- prompts visuais em [spline/BREACHROOM_SCENE_PROMPTS.md](./spline/BREACHROOM_SCENE_PROMPTS.md)
-- overlays e decals em [assets/spline](./assets/spline)
+Este projeto foi feito por **Llew**, com muito esforco, paciencia e carinho pelo processo. Ele representa o resultado de dois anos de estudo envolvendo **3D**, **TypeScript**, composicao visual, interfaces interativas, narrativa digital, responsividade, estrutura de componentes e experimentacao com tecnologias para web.
 
-## Estrutura recomendada no Framer
+## Objetivo
 
-Copie os arquivos da pasta `framer/` para a pasta `code/` do seu projeto Framer.
+O objetivo do site e ensinar historia hacker de um jeito mais memoravel do que uma pagina comum de texto. Cada incidente funciona como uma peca de investigacao: o visitante explora nomes, datas, impactos, metodos e aprendizados ligados a casos que marcaram a seguranca da informacao.
 
-Arquivos principais:
+O foco nao e glorificar ataques, mas mostrar contexto historico, consequencias reais e licoes importantes sobre tecnologia, empresas, dados e responsabilidade digital.
 
-- `BreachRoomLanding.tsx`
-- `BreachRoomHero.tsx`
-- `BreachRoomScene.tsx`
-- `BreachRoomLessons.tsx`
-- `BreachRoomTechStack.tsx`
-- `BreachRoomFooterCTA.tsx`
+## Tecnologia
 
-### Uso rapido
+A experiencia principal foi montada como uma pagina estatica em `breachroom-scene/`, usando **Three.js** para criar a sensacao de profundidade, luz, atmosfera e presenca dentro da cena. O projeto tambem inclui uma base em **TypeScript/TSX** para componentes de interface e organizacao editorial.
 
-Se quiser a pagina toda de uma vez, use apenas:
+Principais estudos aplicados aqui:
 
-- `BreachRoomLanding`
+- Three.js para renderizacao 3D na web;
+- TypeScript para estruturar componentes, dados e logica com mais seguranca;
+- TSX e componentes modulares para organizar a interface;
+- HTML e CSS para publicacao estatica, layout e responsividade;
+- design de experiencia para transformar conteudo historico em exploracao visual;
+- organizacao de assets, overlays e materiais visuais;
+- Git e GitHub Pages para versionamento e publicacao.
 
-Props principais:
+## Curiosidade
 
-- `Spline URL`
-- `GitHub URL`
-- `Accent`
-- `Eyebrow`
-- `CTA 1`
-- `CTA 2`
+Originalmente, o BreachRoom era para ter sido construido no **Spline**. A proposta inicial seguia essa direcao, com uma cena 3D publicada e integrada ao restante da interface. No caminho, surgiram imprevistos, entao a experiencia acabou ganhando outro rumo: a cena foi levada para uma abordagem mais direta na web, com **Three.js**.
 
-### Uso modular
+Esse desvio acabou virando parte da identidade do projeto. Em vez de ser apenas uma integracao pronta, o BreachRoom se tornou uma construcao mais autoral, com mais controle sobre a cena, os elementos visuais e a forma como a narrativa aparece para quem acessa.
 
-Se quiser montar no canvas por blocos:
+## Estrutura
 
-1. `BreachRoomHero`
-2. `BreachRoomScene`
-3. `BreachRoomLessons`
-4. `BreachRoomTechStack`
-5. `BreachRoomFooterCTA`
+- `breachroom-scene/`: site imersivo publicado no GitHub Pages;
+- `framer/`: componentes e dados editoriais em TSX/TypeScript;
+- `assets/spline/`: overlays, marcas e elementos visuais usados no conceito da cena;
+- `spline/`: documentos de direcao visual e storyboard da ideia original em Spline.
 
-Cada bloco foi preparado para renderizar isoladamente no Framer.
+## Sobre
 
-## Montagem recomendada no Framer
+BreachRoom e um estudo de web imersiva, historia hacker e design narrativo. Mais do que uma landing page, ele funciona como uma pequena exposicao digital sobre seguranca, memoria tecnologica e os rastros deixados por grandes incidentes da internet.
 
-1. adicione `BreachRoomHero`;
-2. adicione `BreachRoomScene`;
-3. adicione `BreachRoomLessons`;
-4. adicione `BreachRoomTechStack`;
-5. adicione `BreachRoomFooterCTA`;
-6. ou use `BreachRoomLanding` para a composicao inteira.
-
-## Montagem recomendada no Spline
-
-1. crie a cena base usando o naming de [BREACHROOM_SPLINE_BLUEPRINT.md](./spline/BREACHROOM_SPLINE_BLUEPRINT.md);
-2. configure os estados `idle`, `invite`, `zoom`, `boot`, `playback` e `exit`;
-3. aplique os decals e overlays de `assets/spline/`;
-4. valide as safe areas com o storyboard;
-5. publique a cena;
-6. cole a URL na prop `Spline URL` no Framer.
-
-## Separacao de responsabilidades
-
-### Framer
-
-- hero, CTA e narrativa;
-- menu dos casos;
-- player de cenas;
-- legendas e narracao opcional via Web Speech API;
-- responsividade e iteracao comercial.
-
-### Spline
-
-- sala 3D;
-- monitor, vidro, glow, poeira e camera;
-- hover, zoom e boot sequence;
-- profundidade cinematografica e atmosfera surreal.
-
-## Assets do Spline
-
-Inclui:
-
-- `breachroom-wordmark.svg`
-- `monitor-ui-grid.svg`
-- `alarm-ring.svg`
-- `data-stream.svg`
-- `monitor-frame-overlay.svg`
-- `boot-signal.svg`
-- `noise-plane.svg`
-
-## Observacao honesta
-
-Esta entrega deixa o projeto **Framer-ready** e cria o pacote de handoff do **Spline**, mas o arquivo `.spline` em si ainda precisa ser montado/publicado dentro do Spline com base nesses docs.
+Feito por **Llew**.
