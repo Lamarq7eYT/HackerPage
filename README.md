@@ -1,6 +1,7 @@
 # BreachRoom
 
 Site publicado: https://lamarq7eyt.github.io/HackerPage/
+(Para mobile, recomendo tela na horizontal)
 
 **BreachRoom** e um ambiente imersivo sobre a historia dos hackers, criado para transformar casos marcantes de seguranca digital em uma experiencia visual, interativa e educativa. A ideia e colocar o visitante dentro de uma sala investigativa, com atmosfera de laboratorio, terminais, sinais de alerta e camadas narrativas que ajudam a entender incidentes reais de forma mais envolvente.
 
